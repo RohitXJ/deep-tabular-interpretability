@@ -1,27 +1,26 @@
 import numpy as np
-from imblearn.over_sampling import SMOTE, RandomOverSampler
-from imblearn.under_sampling import RandomUnderSampler
+import pandas as pd
+from imblearn.over_sampling import SMOTE, SMOTENC
 
-def handle_imbalance(X: np.ndarray, y: np.ndarray, method: str = "smote") -> tuple[np.ndarray, np.ndarray]:
+def handle_imbalance(X: pd.DataFrame, y: pd.Series) -> tuple[np.ndarray, np.ndarray]:
     """
-    Handles class imbalance using resampling techniques.
+    Handles class imbalance using SMOTE (for numeric) or SMOTENC (for categorical).
 
     Args:
-        X (np.ndarray): Feature matrix.
-        y (np.ndarray): Target vector.
-        method (str): "smote", "undersample", or "oversample".
+        X (pd.DataFrame): Feature matrix.
+        y (pd.Series): Target vector.
 
     Returns:
         tuple: (Balanced X, Balanced y)
     """
-    if method == "smote":
+
+    categorical_cols = X.select_dtypes(include=["object", "category"]).columns
+    categorical_idx = [X.columns.get_loc(col) for col in categorical_cols]
+
+    if len(categorical_idx) == 0:
         sampler = SMOTE(random_state=42)
-    elif method == "oversample":
-        sampler = RandomOverSampler(random_state=42)
-    elif method == "undersample":
-        sampler = RandomUnderSampler(random_state=42)
     else:
-        raise ValueError("Invalid method. Choose from 'smote', 'oversample', or 'undersample'.")
+        sampler = SMOTENC(categorical_features=categorical_idx, random_state=42)
 
     X_res, y_res = sampler.fit_resample(X, y)
     return X_res, y_res
