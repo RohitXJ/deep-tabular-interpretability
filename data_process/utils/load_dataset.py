@@ -9,4 +9,4 @@ def load_dataset(file_path: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Raw dataset as a pandas DataFrame.
     """
-    return pd.read_csv(file_path)
+    return pd.read_csv(file_path,index_col=False)

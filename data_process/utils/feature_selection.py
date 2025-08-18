@@ -59,7 +59,7 @@ def feature_selection(X:pd.DataFrame,y:pd.DataFrame) -> list:
     else:
         print("Invalid input. No feature filtering applied.")
 
-    return X.columns
+    return list(X.columns)
 
 
 def imp_plot(columns, scores):

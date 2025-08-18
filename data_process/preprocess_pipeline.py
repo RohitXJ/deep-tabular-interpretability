@@ -25,24 +25,25 @@ def data_pipeline(file_path:str):
     target_col = col_dict[target_col]
     print(target_col)
 
+    # Phase 1: Temporary encode/scale for feature selection
     df = handle_missing_values(df)
 
     df_copy = df.copy()
 
-    df_copy,_ = encode_categorical(df_copy,encoding_type="label")
-
     df_copy,_ = scale_numeric(df_copy,target_col)
 
+    df_copy,_ = encode_categorical(df_copy,encoding_type="label")
+
     extracted_features = feature_selection(X=df_copy.drop(columns=[target_col],axis="columns"),y=df_copy[target_col])
-    extracted_features = extracted_features.tolist() 
     extracted_features.append(target_col)
 
     df = pd.DataFrame(df[extracted_features])
+    del(df_copy)
     
+    # Phase 2: Final encode/scale for actual model training
+    df,scaler = scale_numeric(df,target_col)
 
     df,encoders = encode_categorical(df,encoding_type="label")
-
-    df,scaler = scale_numeric(df,target_col)
 
     X = df.drop(columns=[target_col],axis="columns")
     y = df[target_col]
@@ -51,3 +52,7 @@ def data_pipeline(file_path:str):
 
     train_ready_data = split_dataset(X,y,test_size=0.3)
     return train_ready_data
+
+data = data_pipeline(r"Test_data\tested.csv")
+for d in data:
+    print(d.head())
