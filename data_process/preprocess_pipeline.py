@@ -52,7 +52,3 @@ def data_pipeline(file_path:str):
 
     train_ready_data = split_dataset(X,y,test_size=0.3)
     return train_ready_data
-
-data = data_pipeline(r"Test_data\tested.csv")
-for d in data:
-    print(d.head())
