@@ -179,3 +179,10 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Ignore local environment junk
+.black_box_viewer/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
