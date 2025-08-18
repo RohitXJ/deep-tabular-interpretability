@@ -5,12 +5,33 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 
-def feature_selection(X:pd.DataFrame,y:pd.DataFrame) -> pd.DataFrame:
+def feature_selection(X:pd.DataFrame,y:pd.DataFrame) -> list:
+    """
+    Keeps the important features and even lets the user choose the features they wanna keep
+
+    Args:
+        X (pd.DataFrame): Feature matrix.
+        y (pd.DataFrame): Target vector.
+    Returns:
+        img: A plot of important features
+        pd.DataFrame: Dataset with important features only.
+    """
     print("Estimating feature importance from balanced sample...")
     sss = StratifiedShuffleSplit(n_splits=1, test_size=min(0.3, 500 / len(X)), random_state=42)
     for train_idx, _ in sss.split(X, y):
         sample_X = X.iloc[train_idx].copy()
         sample_y = y.iloc[train_idx].copy()
+
+    # Drop low variance and unnecessary features
+    selector = VarianceThreshold(threshold=0.01)
+    X = pd.DataFrame(selector.fit_transform(X), columns=X.columns[selector.get_support()])
+
+    # Drop keyword-based columns
+    keywords = ["id", "name", "serial", "timestamp", "date", "uuid"]
+    for col in sample_X.columns:
+        if any(key in col.lower() for key in keywords):
+            print(f"Dropping non-informative column: {col}")
+            sample_X.drop(columns=[col], inplace=True)
 
     model = LogisticRegression(max_iter=1000, solver='liblinear')
     model.fit(sample_X, sample_y)
@@ -38,11 +59,7 @@ def feature_selection(X:pd.DataFrame,y:pd.DataFrame) -> pd.DataFrame:
     else:
         print("Invalid input. No feature filtering applied.")
 
-    # Drop low variance features
-    selector = VarianceThreshold(threshold=0.01)
-    X = pd.DataFrame(selector.fit_transform(X), columns=X.columns[selector.get_support()])
-
-    return X
+    return X.columns
 
 
 def imp_plot(columns, scores):
@@ -52,9 +69,3 @@ def imp_plot(columns, scores):
     plt.title("Feature Importance")
     plt.tight_layout()
     plt.show()
-
-data = pd.read_csv(r"Test_data\Cleaned.csv")
-X = data.drop(columns=["Survived"],axis="columns")
-y = data["Survived"]
-print(X.head())
-print(feature_selection(X,y).head())
