@@ -138,3 +138,43 @@ def plot_confusion_matrix_and_report(model, X_test: np.ndarray, y_test: np.ndarr
 
 **Input:** `(model, X_test, y_test)`
 **Output:** Confusion matrix plot + printed report
+
+
+## 🔹 Classical ML Models (Baselines)
+
+These are essential to benchmark against DL. Also, many interpretability tools (like SHAP) work very well with them.
+
+**Regression tasks**
+
+Linear Regression
+
+Ridge / Lasso Regression
+
+Random Forest Regressor
+
+Gradient Boosting Regressor (XGBoost, LightGBM, CatBoost)
+
+**Classification tasks**
+
+Logistic Regression
+
+Random Forest Classifier
+
+Gradient Boosting Classifier (XGBoost, LightGBM, CatBoost)
+
+Support Vector Machines (optional, but good for small datasets)
+
+
+## 🔹 Deep Learning Models
+
+Since the focus is DL interpretability, include basic to advanced DL models for tabular data:
+ 
+**For both Regression & Classification:**
+
+Feedforward Neural Network (FNN / MLP) – your simplest baseline DL. 
+
+Wide & Deep Network – mixes memorization (wide features) with generalization (deep layers).
+
+TabNet (Google) – interpretable DL for tabular data using sequential attention.
+
+TabTransformer – leverages transformers on categorical features (optional advanced).
