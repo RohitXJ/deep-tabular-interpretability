@@ -5,7 +5,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 
-def feature_selection(X:pd.DataFrame,y:pd.DataFrame) -> list:
+def feature_search(X:pd.DataFrame,y:pd.DataFrame) -> list:
     """
     Keeps the important features and even lets the user choose the features they wanna keep
 
@@ -40,12 +40,9 @@ def feature_selection(X:pd.DataFrame,y:pd.DataFrame) -> list:
     sorted_idx = np.argsort(importances)[::-1]
     sorted_cols = sample_X.columns[sorted_idx]
     sorted_scores = importances[sorted_idx]
+    return sorted_cols,sorted_scores
 
-    imp_plot(sorted_cols, sorted_scores)
-
-    # Get user input
-    top_n_features = input("Select number of features to keep based on importance scores,\nor enter 'auto' for automatic selection:\n")
-
+def feature_selection(X:pd.DataFrame,top_n_features:str,sorted_cols,sorted_scores):
     # Feature selection logic
     if top_n_features.isdigit():
         top_n_features = int(top_n_features)

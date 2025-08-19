@@ -1,4 +1,5 @@
 from utils import encode_categorical,feature_selection,handle_imbalance,handle_missing_values,load_dataset,scale_numeric,split_dataset
+from utils import feature_search,imp_plot
 import pandas as pd
 
 def data_pipeline(file_path:str):
@@ -33,12 +34,19 @@ def data_pipeline(file_path:str):
     df_copy,_ = scale_numeric(df_copy,target_col)
 
     df_copy,_ = encode_categorical(df_copy,encoding_type="label")
+    X=df_copy.drop(columns=[target_col],axis="columns")
+    y=df_copy[target_col]
+    sorted_cols,sorted_scores = feature_search(X,y)
 
-    extracted_features = feature_selection(X=df_copy.drop(columns=[target_col],axis="columns"),y=df_copy[target_col])
+    imp_plot(sorted_cols,sorted_scores)
+
+    top_n_features = input("Select number of features to keep based on importance scores,\nor enter 'auto' for automatic selection:\n")
+
+    extracted_features = feature_selection(X,top_n_features,sorted_cols,sorted_scores)
     extracted_features.append(target_col)
 
     df = pd.DataFrame(df[extracted_features])
-    del(df_copy)
+    del(df_copy,X,y)
     
     # Phase 2: Final encode/scale for actual model training
     df,scaler = scale_numeric(df,target_col)
@@ -52,3 +60,5 @@ def data_pipeline(file_path:str):
 
     train_ready_data = split_dataset(X,y,test_size=0.3)
     return train_ready_data
+
+print(data_pipeline(r"Test_data\tested.csv"))
