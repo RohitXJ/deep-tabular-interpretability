@@ -1,180 +1,110 @@
-# Model Training & Evaluation Functions (Review 1 - Part 2)
+# Model Training & Evaluation Tasks (Review 1 - Part 2)
 
-## 1. Select Model (model_init.py)
+## 🔹 ML Pipeline Tasks
 
-```python
-def select_model(model_type: str = "mlp", **kwargs):
-    """
-    Initializes a model based on user choice.
+### 1. Model Selection (ML)
 
-    Args:
-        model_type (str): Type of model ("mlp", "random_forest", "logistic", etc.).
-        kwargs: Additional parameters for model initialization.
-    Returns:
-        object: Initialized model.
-    """
-```
+* **Task:** Choose a classical ML model for regression or classification.
+* **Conditions/Choices:**
 
-**Input:** `model_type`, params
-**Output:** `model object`
+  * Regression → {Linear Regression, Ridge/Lasso, Random Forest Regressor, XGBoost/LightGBM/CatBoost}
+  * Classification → {Logistic Regression, Random Forest Classifier, XGBoost/LightGBM/CatBoost, SVM (optional)}
+* **Output:** Untrained model instance.
 
 ---
 
-## 2. Train Model (training.py)
+### 2. Model Training (ML)
 
-```python
-def train_model(model, X_train: np.ndarray, y_train: np.ndarray):
-    """
-    Trains the given model on training data.
+* **Task:** Fit the selected model on training data.
+* **Conditions/Choices:**
 
-    Args:
-        model (object): Initialized model.
-        X_train (np.ndarray): Training features.
-        y_train (np.ndarray): Training labels.
-    Returns:
-        object: Trained model.
-    """
-```
-
-**Input:** `(model, X_train, y_train)`
-**Output:** `trained model`
+  * Supervised fit (`.fit(X_train, y_train)`)
+  * No history object (unlike DL)
+* **Output:** Trained model.
 
 ---
 
-## 3. Evaluate Model (evaluation.py)
+### 3. Model Evaluation (ML)
 
-```python
-def evaluate_model(model, X_test: np.ndarray, y_test: np.ndarray) -> dict:
-    """
-    Evaluates model performance using accuracy, precision, recall, F1-score.
+* **Task:** Evaluate trained model on test data.
+* **Conditions/Choices:**
 
-    Args:
-        model (object): Trained model.
-        X_test (np.ndarray): Test features.
-        y_test (np.ndarray): Test labels.
-    Returns:
-        dict: Metrics dictionary.
-    """
-```
-
-**Input:** `(model, X_test, y_test)`
-**Output:** `{ "accuracy": float, "precision": float, "recall": float, "f1": float }`
+  * Regression metrics → MSE, RMSE, MAE, R²
+  * Classification metrics → Accuracy, Precision, Recall, F1
+* **Output:** Metrics dictionary.
 
 ---
 
-## 4. Save Model (I_O.py)
+### 4. Visualization (ML)
 
-```python
-def save_model(model, file_path: str):
-    """
-    Saves the trained model to disk.
+* **Task:** Visualize performance results.
+* **Conditions/Choices:**
 
-    Args:
-        model (object): Trained model.
-        file_path (str): Path to save model.
-    Returns:
-        None
-    """
-```
-
-**Input:** `(model, file_path)`
-**Output:** None (saved file)
+  * Regression → Residual plots, Predicted vs Actual plots
+  * Classification → Confusion matrix, ROC curve, PR curve
+* **Output:** Matplotlib/Seaborn plots.
 
 ---
 
-## 5. Load Model (I_O.py)
+## 🔹 DL Pipeline Tasks
 
-```python
-def load_model(file_path: str):
-    """
-    Loads a saved model from disk.
+### 1. Model Selection (DL)
 
-    Args:
-        file_path (str): Path to saved model.
-    Returns:
-        object: Loaded model.
-    """
-```
+* **Task:** Choose a DL architecture for regression or classification.
+* **Conditions/Choices:**
 
-**Input:** `file_path`
-**Output:** `model object`
+  * Common → FNN/MLP
+  * Advanced → Wide & Deep Network, TabNet, TabTransformer
+* **Output:** Untrained PyTorch model.
 
 ---
 
-## 6. Plot Performance Metrics (evaluation.py)
+### 2. Model Training (DL)
 
-```python
-def plot_metrics(history: dict):
-    """
-    Plots training/validation loss and accuracy over epochs (for DL models).
+* **Task:** Train model with backpropagation and optimizer.
+* **Conditions/Choices:**
 
-    Args:
-        history (dict): Dictionary with loss/accuracy values.
-    Returns:
-        None
-    """
-```
-
-**Input:** `history dict`
-**Output:** Visualization (matplotlib/seaborn plot)
+  * Define optimizer (Adam, SGD, etc.)
+  * Define loss function (MSE for regression, CrossEntropy for classification)
+  * Track metrics per epoch
+* **Output:** Trained model + Training history.
 
 ---
 
-## 7. Confusion Matrix & Classification Report (evaluation.py)
+### 3. Model Evaluation (DL)
 
-```python
-def plot_confusion_matrix_and_report(model, X_test: np.ndarray, y_test: np.ndarray):
-    """
-    Plots confusion matrix and prints classification report.
+* **Task:** Evaluate trained model on test data.
+* **Conditions/Choices:**
 
-    Args:
-        model (object): Trained model.
-        X_test (np.ndarray): Test features.
-        y_test (np.ndarray): Test labels.
-    Returns:
-        None
-    """
-```
+  * Regression metrics → MSE, RMSE, MAE, R²
+  * Classification metrics → Accuracy, Precision, Recall, F1
+* **Output:** Metrics dictionary.
 
-**Input:** `(model, X_test, y_test)`
-**Output:** Confusion matrix plot + printed report
+---
 
+### 4. Visualization (DL)
 
-## 🔹 Classical ML Models (Baselines)
+* **Task:** Plot performance curves.
+* **Conditions/Choices:**
 
-These are essential to benchmark against DL. Also, many interpretability tools (like SHAP) work very well with them.
+  * Training vs Validation Loss over epochs
+  * Training vs Validation Accuracy (classification only)
+* **Output:** Training history plots.
 
-**Regression tasks**
+---
 
-Linear Regression
+### 5. Additional Diagnostics (DL)
 
-Ridge / Lasso Regression
+* **Task:** Provide deeper evaluation for interpretability.
+* **Conditions/Choices:**
 
-Random Forest Regressor
+  * Classification → Confusion matrix, ROC, PR curve
+  * Regression → Error distribution plots
+* **Output:** Diagnostic visualizations.
 
-Gradient Boosting Regressor (XGBoost, LightGBM, CatBoost)
+---
 
-**Classification tasks**
+## 🔹 Key Separation of ML vs DL Tasks
 
-Logistic Regression
-
-Random Forest Classifier
-
-Gradient Boosting Classifier (XGBoost, LightGBM, CatBoost)
-
-Support Vector Machines (optional, but good for small datasets)
-
-
-## 🔹 Deep Learning Models
-
-Since the focus is DL interpretability, include basic to advanced DL models for tabular data:
- 
-**For both Regression & Classification:**
-
-Feedforward Neural Network (FNN / MLP) – your simplest baseline DL. 
-
-Wide & Deep Network – mixes memorization (wide features) with generalization (deep layers).
-
-TabNet (Google) – interpretable DL for tabular data using sequential attention.
-
-TabTransformer – leverages transformers on categorical features (optional advanced).
+* **ML:** Simple fit, no epochs/history, lightweight metrics/plots.
+* **DL:** Requires optimizer, epochs, history tracking, specialized plots.
