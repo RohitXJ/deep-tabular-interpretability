@@ -1,5 +1,5 @@
-from utils import encode_categorical,feature_selection,handle_imbalance,handle_missing_values,load_dataset,scale_numeric,split_dataset
-from utils import feature_search,imp_plot
+from data_process.utils import encode_categorical,feature_selection,handle_imbalance,handle_missing_values,load_dataset,scale_numeric,split_dataset
+from data_process.utils import feature_search,imp_plot
 import pandas as pd
 
 def data_pipeline(file_path:str):
@@ -61,4 +61,4 @@ def data_pipeline(file_path:str):
     train_ready_data = split_dataset(X,y,test_size=0.3)
     return train_ready_data
 
-print(data_pipeline(r"Test_data\tested.csv"))
+#print(data_pipeline(r"Test_data\tested.csv"))
