@@ -1,4 +1,5 @@
-
+import warnings
+warnings.filterwarnings("ignore")
 
 from data_process import (
     encode_categorical,
@@ -32,7 +33,7 @@ domain_type = {
 }
 
 if __name__ == "__main__":
-    data_path = r"Test_data\tested.csv" #Default Input
+    data_path = r"Test_data\tested.csv"  #Default Input
     #######---------Options Input---------#######
 
     print("\nChoose your domain (Enter the option number):")
@@ -90,9 +91,9 @@ if __name__ == "__main__":
     print(target_col)
 
     # Phase 1: Temporary encode/scale for feature selection
-    df = handle_missing_values(df)
+    df = handle_missing_values(df,target_col=target_col)
     df_copy = df.copy()
-    df_copy,_ = scale_numeric(df_copy,target_col,domain_name,prediction_type)
+    df_copy,_ = scale_numeric(df_copy,target_col,domain_name,model_name,prediction_type)
     df_copy,_ = encode_categorical(df_copy,encoding_type="label")
     X=df_copy.drop(columns=[target_col],axis="columns")
     y=df_copy[target_col]
@@ -105,7 +106,7 @@ if __name__ == "__main__":
     del(df_copy,X,y)
     
     # Phase 2: Final encode/scale for actual model training
-    df,scaler = scale_numeric(df,target_col,type)
+    df,scaler = scale_numeric(df,target_col,domain_name,model_name,prediction_type)
     df,encoders = encode_categorical(df,encoding_type="label")
     X = df.drop(columns=[target_col],axis="columns")
     y = df[target_col]

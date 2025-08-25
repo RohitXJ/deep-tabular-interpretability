@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.impute import SimpleImputer
 
-def handle_missing_values(df: pd.DataFrame, strategy_num: str = "mean", strategy_cat: str = "most_frequent") -> pd.DataFrame:
+def handle_missing_values(df: pd.DataFrame, target_col:str, strategy_num: str = "mean", strategy_cat: str = "most_frequent") -> pd.DataFrame:
     """
     Fills missing values for numeric and categorical columns.
 
@@ -14,6 +14,8 @@ def handle_missing_values(df: pd.DataFrame, strategy_num: str = "mean", strategy
     """
     try:
         total_length = df.shape
+        df = df.dropna(subset=[target_col])
+
         for col in df.columns:
             col_miss_total = df[col].isnull().sum().sum()
             miss_percent = (col_miss_total/total_length[0])*100
