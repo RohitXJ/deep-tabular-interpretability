@@ -12,3 +12,5 @@ plotly
 xgboost
 lightgbm
 catboost
+smong
+imbalanced-learn

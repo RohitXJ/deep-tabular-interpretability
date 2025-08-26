@@ -71,6 +71,8 @@ if __name__ == "__main__":
 
     elif domain_name == "DL":
         print("DL options will be added later.")
+    else:
+        raise ValueError("Wrong Domain Chosen!")
 
     print(f"domain name {domain_name} prediction type {prediction_type} model name {model_name}")
     pass
@@ -97,7 +99,7 @@ if __name__ == "__main__":
     df_copy,_ = encode_categorical(df_copy,encoding_type="label")
     X=df_copy.drop(columns=[target_col],axis="columns")
     y=df_copy[target_col]
-    sorted_cols,sorted_scores = feature_search(X,y)
+    sorted_cols,sorted_scores = feature_search(X,y,task_type=prediction_type)
     imp_plot(sorted_cols,sorted_scores)
     top_n_features = input("Select number of features to keep based on importance scores,\nor enter 'auto' for automatic selection:\n")
     extracted_features = feature_selection(X,top_n_features,sorted_cols,sorted_scores)
@@ -110,5 +112,17 @@ if __name__ == "__main__":
     df,encoders = encode_categorical(df,encoding_type="label")
     X = df.drop(columns=[target_col],axis="columns")
     y = df[target_col]
-    X,y = handle_imbalance(X,y)
+    X,y = handle_imbalance(X,y,task_type=prediction_type)
     train_ready_data = split_dataset(X,y,test_size=0.3)
+
+
+    #######---------Model Pipeline Starts---------#######
+
+    if domain_name == "ML":
+        RAW_model = ML_models_call(type=prediction_type,model=model_name)
+
+        trained_model = ML_model_train(model=RAW_model,data=[train_ready_data[0],train_ready_data[2]])
+
+        ML_model_eval(model=trained_model,test_data=[train_ready_data[1],train_ready_data[3]],type=prediction_type)
+    else:
+        print("DL part not yet added")
