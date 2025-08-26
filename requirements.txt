@@ -12,5 +12,8 @@ plotly
 xgboost
 lightgbm
 catboost
-smong
+smogn
 imbalanced-learn
+Flask
+Flask-WTF
+python-dotenv

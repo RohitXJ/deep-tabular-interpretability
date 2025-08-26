@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h3>Step 1: Upload Your CSV Dataset</h3>
+    <form method="POST" enctype="multipart/form-data" novalidate>
+        {{ form.hidden_tag() }} {# CSRF protection #}
+        <p>
+            {{ form.csv_file.label }}<br>
+            {{ form.csv_file() }}
+            {% for error in form.csv_file.errors %}
+                <span style="color: red;">[{{ error }}]</span>
+            {% endfor %}
+        </p>
+        <p>{{ form.submit() }}</p>
+    </form>
+{% endblock %}

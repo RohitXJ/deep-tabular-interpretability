@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h3>Step 3: Configure Data for "{{ filename }}"</h3>
+    <p>
+        <b>Model:</b> {{ session.get('model_config', {}).get('model', 'N/A') }} <br>
+        <b>Task:</b> {{ session.get('model_config', {}).get('prediction_type', 'N/A') }}
+    </p>
+    <hr>
+
+    <form method="POST" novalidate>
+        {{ form.hidden_tag() }} {# CSRF protection #}
+
+        <p>
+            {{ form.target_column.label }}<br>
+            {# Add id for javascript to find this element #}
+            {{ form.target_column(id='target_column') }}
+        </p>
+
+        <div id="loading-message" style="display: none;">
+            <p><i>Running feature analysis... Please wait.</i></p>
+        </div>
+
+        {# This container will be shown by javascript after analysis #}
+        <div id="feature-analysis-container" style="display: none;">
+            <hr>
+            <h4>Feature Importance</h4>
+            <img id="feature-plot" src="" alt="Feature Importance Plot" style="max-width: 800px;">
+            <hr>
+            <p>
+                {{ form.feature_selection.label }}<br>
+                {{ form.feature_selection() }}
+            </p>
+            <p>{{ form.submit() }}</p>
+        </div>
+
+    </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const targetColumnSelect = document.getElementById('target_column');
+            const loadingMessage = document.getElementById('loading-message');
+            const featureContainer = document.getElementById('feature-analysis-container');
+            const featurePlot = document.getElementById('feature-plot');
+            const featureSelect = document.getElementById('feature_selection');
+
+            targetColumnSelect.addEventListener('change', function () {
+                const targetColumn = this.value;
+                if (!targetColumn) return;
+
+                // Hide previous results and show loading message
+                featureContainer.style.display = 'none';
+                loadingMessage.style.display = 'block';
+
+                // Call the analysis route
+                fetch("{{ url_for('main.run_feature_analysis') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Include CSRF token if needed by your setup, though often not for API-like routes
+                    },
+                    body: JSON.stringify({ target_column: targetColumn })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    // Populate plot and feature selection dropdown
+                    featurePlot.src = data.plot_url;
+                    featureSelect.innerHTML = ''; // Clear old options
+                    data.feature_choices.forEach(choice => {
+                        const option = document.createElement('option');
+                        option.value = choice.value;
+                        option.textContent = choice.text;
+                        featureSelect.appendChild(option);
+                    });
+
+                    // Hide loading and show results
+                    loadingMessage.style.display = 'none';
+                    featureContainer.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    loadingMessage.innerHTML = `<p style="color: red;">An error occurred: ${error.message}</p>`;
+                });
+            });
+        });
+    </script>
+{% endblock %}

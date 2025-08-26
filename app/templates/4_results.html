@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h3>Step 4: Analysis Results</h3>
+
+    <p>
+        {% if selection_method == 'auto' %}
+            Model trained using <b>{{ num_features }}</b> features (selected automatically).
+        {% else %}
+            Model trained using the top <b>{{ num_features }}</b> features (selected manually).
+        {% endif %}
+    </p>
+    <hr>
+    <h4>Model Evaluation Report</h4>
+    <pre>{{ report }}</pre>
+
+    <hr>
+
+    <a href="{{ url_for('main.upload') }}">Start New Analysis</a>
+{% endblock %}

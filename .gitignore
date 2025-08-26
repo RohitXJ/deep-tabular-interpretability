@@ -185,3 +185,4 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+/catboost_info

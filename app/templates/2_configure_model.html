@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h3>Step 2: Select Model</h3>
+    <p>Dataset: <strong>{{ session.get('filename', 'N/A') }}</strong></p>
+    <form method="POST" novalidate>
+        {{ form.hidden_tag() }} {# CSRF protection #}
+
+        <p>
+            {{ form.prediction_type.label }}<br>
+            {{ form.prediction_type() }}
+        </p>
+
+        <p>
+            {{ form.model.label }}<br>
+            {{ form.model() }}
+        </p>
+
+        <p>{{ form.submit() }}</p>
+    </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const predictionTypeSelect = document.getElementById('prediction_type');
+            const modelSelect = document.getElementById('model');
+
+            predictionTypeSelect.addEventListener('change', function () {
+                const predictionType = this.value;
+                fetch(`/models/${predictionType}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        modelSelect.innerHTML = ''; // Clear existing options
+                        data.models.forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model.value;
+                            option.textContent = model.text;
+                            modelSelect.appendChild(option);
+                        });
+                    });
+            });
+        });
+    </script>
+{% endblock %}

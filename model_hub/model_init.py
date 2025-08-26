@@ -34,11 +34,11 @@ def ML_models_call(type: str, model: str):
         elif model == "Random Forest Classifier":
             M_obj = RandomForestClassifier()
         elif model == "XGBoost":
-            M_obj = XGBClassifier()
+            M_obj = XGBClassifier(verbosity=0)
         elif model == "LightGBM":
-            M_obj = LGBMClassifier()
+            M_obj = LGBMClassifier(verbose=-1)
         elif model == "CatBoost":
-            M_obj = CatBoostClassifier()
+            M_obj = CatBoostClassifier(verbose=0)
         else:
             raise ValueError("Wrong choice of models.")
     else:
