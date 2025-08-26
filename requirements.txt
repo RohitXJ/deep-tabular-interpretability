@@ -9,3 +9,8 @@ shap
 captum
 streamlit
 plotly
+xgboost
+lightgbm
+catboost
+smong
+imbalanced-learn
