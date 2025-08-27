@@ -1,20 +1,37 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h3>Step 4: Analysis Results</h3>
+    
 
-    <p>
-        {% if selection_method == 'auto' %}
-            Model trained using <b>{{ num_features }}</b> features (selected automatically).
-        {% else %}
-            Model trained using the top <b>{{ num_features }}</b> features (selected manually).
-        {% endif %}
-    </p>
-    <hr>
-    <h4>Model Evaluation Report</h4>
-    <pre>{{ report }}</pre>
+    <div id="results-content" style="display: block;">
+        <h3>Step 4: Analysis Results</h3>
+        <p id="feature-info"></p>
+        <hr>
+        <h4>Model Evaluation Report</h4>
+        <pre id="report-content"></pre>
+        <hr>
+        <a href="{{ url_for('main.upload') }}">Start New Analysis</a>
+    </div>
 
-    <hr>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const featureInfo = document.getElementById('feature-info');
+            const reportContent = document.getElementById('report-content');
 
-    <a href="{{ url_for('main.upload') }}">Start New Analysis</a>
+            fetch("{{ url_for('main.run_analysis') }}")
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        reportContent.textContent = 'An error occurred: ' + data.error;
+                    } else {
+                        featureInfo.innerHTML = data.num_features_message;
+                        reportContent.textContent = data.final_report;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    reportContent.textContent = 'An error occurred while fetching the results.';
+                });
+        });
+    </script>
 {% endblock %}

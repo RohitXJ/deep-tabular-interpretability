@@ -4,22 +4,122 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>Deep Tabular Interpretability</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background-color: #f0f2f5;
+        background-image: linear-gradient(45deg, #f0f2f5 0%, #e6e9ed 100%);
+        color: #333;
+        margin: 0;
+        padding: 2rem;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: #ffffff;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+      }
+      h2, h3, h4 {
+        color: #2c3e50;
+      }
+      h2 {
+        text-align: center;
+        border-bottom: 2px solid #dfe4ea;
+        padding-bottom: 1rem;
+        margin-bottom: 2rem;
+        font-weight: 600;
+      }
+      hr {
+        border: none;
+        border-top: 1px solid #dfe4ea;
+        margin: 2rem 0;
+      }
+      a {
+        color: #1abc9c;
+        text-decoration: none;
+        transition: color 0.3s ease;
+      }
+      a:hover {
+        color: #16a085;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+      }
+      .flashes li {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+      input[type="file"], select {
+        width: 100%;
+        padding: 0.8rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        transition: box-shadow 0.3s ease;
+      }
+      input[type="file"]:focus, select:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+      }
+      input[type="submit"], button {
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        color: white;
+        padding: 0.8rem 1.5rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        align-self: flex-start;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      input[type="submit"]:hover, button:hover {
+        background: linear-gradient(45deg, #2980b9, #3498db);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      }
+      .form-group p {
+        margin: 0;
+      }
+      pre {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        border: 1px solid #e9ecef;
+        font-size: 0.9rem;
+      }
+      
+    </style>
   </head>
   <body>
-    <h2>Deep Tabular Interpretability</h2>
-    <hr>
-    {# This is where flashed messages will go #}
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <ul>
-        {% for category, message in messages %}
-          <li class="{{ category }}">{{ message }}</li>
-        {% endfor %}
-        </ul>
-      {% endif %}
-    {% endwith %}
-
-    {# This is the main content block for child templates #}
-    {% block content %}{% endblock %}
+    <div class="container">
+      <h2>Deep Tabular Interpretability</h2>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <ul class="flashes">
+          {% for category, message in messages %}
+            <li class="{{ category }}">{{ message }}</li>
+          {% endfor %}
+          </ul>
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
   </body>
 </html>

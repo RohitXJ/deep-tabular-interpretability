@@ -5,8 +5,11 @@ import os
 import pandas as pd
 import sys
 import io
+import shutil
+import time
+import json
 from flask import (
-    Blueprint, render_template, redirect, url_for, session, current_app, request, flash, jsonify
+    Blueprint, render_template, redirect, url_for, session, current_app, request, flash, jsonify, Response
 )
 from werkzeug.utils import secure_filename
 from app.forms import UploadForm, ModelConfigureForm, DataConfigureForm
@@ -167,37 +170,41 @@ def get_models(prediction_type):
 
 @bp.route('/results')
 def results():
-    file_path = session.get('file_path')
-    config = session.get('config')
-    feature_analysis = session.get('feature_analysis')
-
-    if not all([file_path, config, feature_analysis]):
-        flash('Configuration or file is missing. Please start over.')
+    if 'config' not in session:
+        flash('Configuration is missing. Please start over.')
         return redirect(url_for('main.upload'))
+    return render_template('4_results.html')
+
+@bp.route('/run_analysis')
+def run_analysis():
+    file_path = session.get('file_path')
+    feature_analysis = session.get('feature_analysis')
+    config = session.get('config')
 
     try:
-        # --- Start ML Pipeline ---
+        if not all([file_path, config, feature_analysis]):
+            return jsonify({'error': 'Session data is missing.'}), 400
+
         df = load_dataset(file_path)
         target_col = config['target_column']
         prediction_type = config['prediction_type']
         model_name = config['model']
         top_n_features = config['feature_selection']
 
-        # Feature analysis is already done, just retrieve results
+        df = handle_missing_values(df, target_col=target_col)
+
         sorted_cols = feature_analysis['sorted_cols']
         sorted_scores = feature_analysis['sorted_scores']
-        plot_url = feature_analysis['plot_url']
-
-        df = handle_missing_values(df, target_col=target_col)
-        X_for_selection = pd.DataFrame(columns=sorted_cols) # Create a dummy df for selection
+        X_for_selection = pd.DataFrame(columns=sorted_cols)
         extracted_features, num_features = feature_selection(X_for_selection, top_n_features, sorted_cols, sorted_scores)
         extracted_features.append(target_col)
         df = pd.DataFrame(df[extracted_features])
-        
+
         df, scaler = scale_numeric(df, target_col, "ML", model_name, prediction_type)
         df, encoders = encode_categorical(df, encoding_type="label")
         X = df.drop(columns=[target_col], axis="columns")
         y = df[target_col]
+
         X, y = handle_imbalance(X, y, task_type=prediction_type)
         train_ready_data = split_dataset(X, y, test_size=0.3)
 
@@ -210,18 +217,42 @@ def results():
         sys.stdout = old_stdout
         report = captured_output.getvalue()
 
-        # --- Cleanup --- #
-        try:
-            os.remove(file_path)
-            # Clean up catboost dir if it exists
-            if os.path.exists('catboost_info'):
-                shutil.rmtree('catboost_info')
-            print("Cleaned up temporary files.")
-        except Exception as e:
-            print(f"Error during cleanup: {e}")
+        if top_n_features == 'auto':
+            num_features_message = f"Model trained using <b>{num_features}</b> features (selected automatically)."
+        else:
+            num_features_message = f"Model trained using the top <b>{num_features}</b> features (selected manually)."
+        
+        final_data = {
+            'final_report': report,
+            'num_features_message': num_features_message
+        }
 
-        return render_template('4_results.html', report=report, num_features=num_features, selection_method=top_n_features)
+        return jsonify(final_data)
 
     except Exception as e:
-        flash(f"An error occurred during the analysis: {e}")
-        return redirect(url_for('main.upload'))
+        return jsonify({'error': str(e)}), 500
+    
+    finally:
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                print(f"Cleaned up file: {file_path}")
+            except Exception as e:
+                print(f"Error cleaning up file {file_path}: {e}")
+        
+        if feature_analysis and 'plot_url' in feature_analysis:
+            plot_filename = os.path.basename(feature_analysis['plot_url'])
+            plot_path = os.path.join(current_app.root_path, 'static', 'images', plot_filename)
+            if os.path.exists(plot_path):
+                try:
+                    os.remove(plot_path)
+                    print(f"Cleaned up plot: {plot_path}")
+                except Exception as e:
+                    print(f"Error cleaning up plot {plot_path}: {e}")
+
+        if os.path.exists('catboost_info'):
+            try:
+                shutil.rmtree('catboost_info')
+                print("Cleaned up catboost_info directory.")
+            except Exception as e:
+                print(f"Error cleaning up catboost_info directory: {e}")

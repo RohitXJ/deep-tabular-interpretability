@@ -17,9 +17,7 @@
             {{ form.target_column(id='target_column') }}
         </p>
 
-        <div id="loading-message" style="display: none;">
-            <p><i>Running feature analysis... Please wait.</i></p>
-        </div>
+        
 
         {# This container will be shown by javascript after analysis #}
         <div id="feature-analysis-container" style="display: none;">
@@ -39,7 +37,6 @@
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const targetColumnSelect = document.getElementById('target_column');
-            const loadingMessage = document.getElementById('loading-message');
             const featureContainer = document.getElementById('feature-analysis-container');
             const featurePlot = document.getElementById('feature-plot');
             const featureSelect = document.getElementById('feature_selection');
@@ -48,9 +45,8 @@
                 const targetColumn = this.value;
                 if (!targetColumn) return;
 
-                // Hide previous results and show loading message
+                // Hide previous results
                 featureContainer.style.display = 'none';
-                loadingMessage.style.display = 'block';
 
                 // Call the analysis route
                 fetch("{{ url_for('main.run_feature_analysis') }}", {
@@ -82,13 +78,11 @@
                         featureSelect.appendChild(option);
                     });
 
-                    // Hide loading and show results
-                    loadingMessage.style.display = 'none';
+                    // Show results
                     featureContainer.style.display = 'block';
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    loadingMessage.innerHTML = `<p style="color: red;">An error occurred: ${error.message}</p>`;
                 });
             });
         });
