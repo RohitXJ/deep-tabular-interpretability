@@ -57,3 +57,8 @@ def ML_model_eval(model: object, test_data: list, type: str):
 
     else:
         raise ValueError("Invalid type. Choose either 'Classification' or 'Regression'.")
+
+def DL_model_eval(model: object, test_data: list, type: str):
+    print("Deep Learning Model Evaluation is not implemented yet.")
+    # Placeholder for DL model evaluation logic
+    pass

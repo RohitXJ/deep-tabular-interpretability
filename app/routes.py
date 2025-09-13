@@ -26,18 +26,22 @@ from data_process import (
     scale_numeric,
     split_dataset,
 )
-from model_hub import ML_model_eval, ML_models_call, ML_model_train
+from model_hub import ML_model_eval, ML_models_call, ML_model_train, DL_models_call, DL_model_train, DL_model_eval
 
 bp = Blueprint('main', __name__, url_prefix='/')
 
 MODEL_CHOICES = {
     "Classification": {
-        1:"Logistic Regression",2:"SVM",3:"Random Forest Classifier",4:"XGBoost",5:"LightGBM",6:"CatBoost"
+        1:"Logistic Regression",2:"SVM",3:"Random Forest Classifier",4:"XGBoost",5:"LightGBM",6:"CatBoost",
+        7:"FNN", 8:"TabNet", 9:"TabTransformer", 10:"NODE", 11:"FT-Transformer"
     },
     "Regression": {
-        1:"Linear Regression",2:"Ridge",3:"Lasso",4:"Random Forest Regressor",5:"XGBoost",6:"LightGBM",7:"CatBoost"
+        1:"Linear Regression",2:"Ridge",3:"Lasso",4:"Random Forest Regressor",5:"XGBoost",6:"LightGBM",7:"CatBoost",
+        8:"FNN", 9:"TabNet", 10:"TabTransformer", 11:"NODE", 12:"FT-Transformer"
     }
 }
+
+DL_MODELS = ["FNN", "TabNet", "TabTransformer", "NODE", "FT-Transformer"]
 
 @bp.route('/', methods=['GET', 'POST'])
 def upload():
@@ -132,7 +136,7 @@ def run_feature_analysis():
         df = handle_missing_values(df, target_col=target_col)
         df_copy = df.copy()
         df_copy, _ = scale_numeric(df_copy, target_col, "ML", model_config['model'], model_config['prediction_type'])
-        df_copy, _ = encode_categorical(df_copy, encoding_type="label")
+        df_copy, encoders = encode_categorical(df_copy, encoding_type="label")
         X_fs = df_copy.drop(columns=[target_col], axis="columns")
         y_fs = df_copy[target_col]
         
@@ -147,7 +151,9 @@ def run_feature_analysis():
         session['feature_analysis'] = {
             'sorted_cols': list(sorted_cols),
             'sorted_scores': [float(s) for s in sorted_scores],
-            'plot_url': plot_url
+            'plot_url': plot_url,
+            'categorical_features': [col for col, encoder in encoders.items() if encoder is not None],
+            'numerical_features': [col for col in X_fs.columns if col not in encoders]
         }
 
         feature_count = len(X_fs.columns)
@@ -200,22 +206,59 @@ def run_analysis():
         extracted_features.append(target_col)
         df = pd.DataFrame(df[extracted_features])
 
-        df, scaler = scale_numeric(df, target_col, "ML", model_name, prediction_type)
-        df, encoders = encode_categorical(df, encoding_type="label")
-        X = df.drop(columns=[target_col], axis="columns")
-        y = df[target_col]
+        if model_name in DL_MODELS:
+            # DL Model Handling
+            df, scaler = scale_numeric(df, target_col, "DL", model_name, prediction_type)
+            df, encoders = encode_categorical(df, encoding_type="label")
+            X = df.drop(columns=[target_col], axis="columns")
+            y = df[target_col]
 
-        X, y = handle_imbalance(X, y, task_type=prediction_type)
-        train_ready_data = split_dataset(X, y, test_size=0.3)
+            input_dim = X.shape[1]
+            output_dim = len(y.unique()) if prediction_type == "Classification" else 1
+            
+            cat_features = feature_analysis.get('categorical_features', [])
+            num_features_list = feature_analysis.get('numerical_features', [])
+            
+            cat_cardinalities = [len(encoders[col].classes_) for col in cat_features if col in encoders]
+            n_num_features = len(num_features_list)
 
-        RAW_model = ML_models_call(type=prediction_type, model=model_name)
-        trained_model = ML_model_train(model=RAW_model, data=[train_ready_data[0], train_ready_data[2]])
+            X, y = handle_imbalance(X, y, task_type=prediction_type)
+            train_ready_data = split_dataset(X, y, test_size=0.3)
 
-        old_stdout = sys.stdout
-        sys.stdout = captured_output = io.StringIO()
-        ML_model_eval(model=trained_model, test_data=[train_ready_data[1], train_ready_data[3]], type=prediction_type)
-        sys.stdout = old_stdout
-        report = captured_output.getvalue()
+            RAW_model = DL_models_call(
+                model=model_name,
+                task_type=prediction_type,
+                input_dim=input_dim,
+                output_dim=output_dim,
+                cat_cardinalities=cat_cardinalities,
+                n_num_features=n_num_features
+            )
+            trained_model = DL_model_train(model=RAW_model, data=[train_ready_data[0], train_ready_data[2]])
+
+            old_stdout = sys.stdout
+            sys.stdout = captured_output = io.StringIO()
+            DL_model_eval(model=trained_model, test_data=[train_ready_data[1], train_ready_data[3]], type=prediction_type)
+            sys.stdout = old_stdout
+            report = captured_output.getvalue()
+
+        else:
+            # ML Model Handling
+            df, scaler = scale_numeric(df, target_col, "ML", model_name, prediction_type)
+            df, encoders = encode_categorical(df, encoding_type="label")
+            X = df.drop(columns=[target_col], axis="columns")
+            y = df[target_col]
+
+            X, y = handle_imbalance(X, y, task_type=prediction_type)
+            train_ready_data = split_dataset(X, y, test_size=0.3)
+
+            RAW_model = ML_models_call(type=prediction_type, model=model_name)
+            trained_model = ML_model_train(model=RAW_model, data=[train_ready_data[0], train_ready_data[2]])
+
+            old_stdout = sys.stdout
+            sys.stdout = captured_output = io.StringIO()
+            ML_model_eval(model=trained_model, test_data=[train_ready_data[1], train_ready_data[3]], type=prediction_type)
+            sys.stdout = old_stdout
+            report = captured_output.getvalue()
 
         if top_n_features == 'auto':
             num_features_message = f"Model trained using <b>{num_features}</b> features (selected automatically)."

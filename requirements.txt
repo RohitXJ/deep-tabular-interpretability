@@ -2,7 +2,6 @@ pandas
 numpy
 scikit-learn
 imblearn
-torch
 matplotlib
 seaborn
 shap
@@ -17,3 +16,7 @@ imbalanced-learn
 Flask
 Flask-WTF
 python-dotenv
+torch==1.7
+rtdl_revisiting_models
+pytorch-tabnet2
+tab-transformer-pytorch
