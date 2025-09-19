@@ -187,3 +187,4 @@ __pycache__/
 *.pyc
 /catboost_info
 /uploads
+/app/static/images
