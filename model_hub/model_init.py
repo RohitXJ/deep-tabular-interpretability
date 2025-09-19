@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, './node')
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, LogisticRegression
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.svm import SVC
@@ -6,8 +8,9 @@ from lightgbm import LGBMRegressor, LGBMClassifier
 from catboost import CatBoostRegressor, CatBoostClassifier
 import torch
 import torch.nn as nn
-import rtdl
+
 from pytorch_tabnet.tab_model import TabNetClassifier, TabNetRegressor
+from tab_transformer_pytorch import TabTransformer
 
 
 def ML_models_call(type: str, model: str):
@@ -56,40 +59,43 @@ def DL_models_call(
     task_type: str,
     input_dim: int,
     output_dim: int,
+    cat_idxs: list = None,
     cat_cardinalities: list = None,
-    n_num_features: int = None,
+    hyperparameters: dict = {},
+    device: str = 'cpu'
 ):
     """
     This function initializes a Deep Learning model for tabular data.
 
     Parameters:
     - model (str): The name of the model to initialize.
-      Options: "FNN", "TabNet", "TabTransformer", "NODE", "FT-Transformer".
+      Options: "FNN", "TabNet", "NODE".
     - task_type (str): The type of task.
       Options: "classification", "regression".
     - input_dim (int): The number of input features.
     - output_dim (int): The number of output features.
+    - cat_idxs (list): A list of indices of categorical features.
     - cat_cardinalities (list): A list of cardinalities of categorical features.
-      Required for TabTransformer and FT-Transformer.
     - n_num_features (int): The number of numerical features.
-      Required for TabTransformer and FT-Transformer.
+    - hyperparameters (dict): A dictionary of hyperparameters for the model.
+    - device (str): The device to run the model on, 'cpu' or 'cuda'.
     """
-    # Type 1 Parameters (Hardcoded Defaults)
-    hidden_dims = [128, 128]
-    dropout = 0.1
-    n_d = 8
-    n_a = 8
-    n_steps = 3
-    gamma = 1.3
-    n_blocks = 3
-    d_token = 192
-    attention_dropout = 0.2
-    ffn_dropout = 0.1
-    n_layers = 1
-    layer_dim = 128
-    num_trees = 2048
-    depth = 6
-    tree_dim = 3
+    # Get hyperparameters with defaults
+    hidden_dims = hyperparameters.get('hidden_dims', [128, 128])
+    dropout = hyperparameters.get('dropout', 0.1)
+    n_d = hyperparameters.get('n_d', 8)
+    n_a = hyperparameters.get('n_a', 8)
+    n_steps = hyperparameters.get('n_steps', 3)
+    gamma = hyperparameters.get('gamma', 1.3)
+    n_blocks = hyperparameters.get('n_blocks', 3)
+    d_token = hyperparameters.get('d_token', 192)
+    attention_dropout = hyperparameters.get('attention_dropout', 0.2)
+    ffn_dropout = hyperparameters.get('ffn_dropout', 0.1)
+    n_layers = hyperparameters.get('n_layers', 1)
+    layer_dim = hyperparameters.get('layer_dim', 128)
+    num_trees = hyperparameters.get('num_trees', 2048)
+    depth = hyperparameters.get('depth', 6)
+    tree_dim = hyperparameters.get('tree_dim', 3)
 
     if model == "FNN":
         layers = []
@@ -113,8 +119,9 @@ def DL_models_call(
                 n_a=n_a,
                 n_steps=n_steps,
                 gamma=gamma,
-                input_dim=input_dim,
-                output_dim=output_dim,
+                cat_idxs=cat_idxs,
+                cat_dims=cat_cardinalities,
+                device_name=device
             )
         else:
             M_obj = TabNetRegressor(
@@ -122,42 +129,34 @@ def DL_models_call(
                 n_a=n_a,
                 n_steps=n_steps,
                 gamma=gamma,
-                input_dim=input_dim,
-                output_dim=output_dim,
+                cat_idxs=cat_idxs,
+                cat_dims=cat_cardinalities,
+                device_name=device
             )
     elif model == "TabTransformer":
-        if cat_cardinalities is None or n_num_features is None:
-            raise ValueError("cat_cardinalities and n_num_features are required for TabTransformer")
-        M_obj = rtdl.TabTransformer(
-            n_num_features=n_num_features,
-            cat_cardinalities=cat_cardinalities,
-            d_token=d_token,
-            n_blocks=n_blocks,
-            attention_dropout=attention_dropout,
-            ffn_dropout=ffn_dropout,
-            d_out=output_dim,
-        )
-    elif model == "NODE":
-        M_obj = rtdl.NODE(
-            d_in=input_dim,
-            n_layers=n_layers,
-            layer_dim=layer_dim,
-            num_trees=num_trees,
-            depth=depth,
-            tree_dim=tree_dim,
-            d_out=output_dim,
-        )
-    elif model == "FT-Transformer":
-        if cat_cardinalities is None or n_num_features is None:
-            raise ValueError("cat_cardinalities and n_num_features are required for FT-Transformer")
-        M_obj = rtdl.FTTransformer(
-            n_num_features=n_num_features,
-            cat_cardinalities=cat_cardinalities,
-            n_blocks=n_blocks,
-            d_token=d_token,
-            attention_dropout=attention_dropout,
-            ffn_dropout=ffn_dropout,
-            d_out=output_dim,
+        # TabTransformer expects categorical features to be passed separately
+        # cat_cardinalities is a list of cardinalities for each categorical feature
+        # cat_idxs is a list of indices for each categorical feature
+        # input_dim is the total number of features (numerical + categorical)
+        # output_dim is the number of output classes/regression target dimension
+
+        # The TabTransformer library expects a list of (cardinality, embedding_dim) for categorical features.
+        # For simplicity, we'll use a default embedding_dim for all categorical features.
+        # A common choice is to use min(50, cardinality // 2) or a fixed small number like 4 or 8.
+        # Let's use a fixed embedding dimension of 8 for now.
+        cat_dims_with_emb = [(card, 8) for card in cat_cardinalities]
+
+        M_obj = TabTransformer(
+            categories=cat_dims_with_emb,
+            num_continuous=input_dim - len(cat_idxs), # Total features - number of categorical features
+            dim=hyperparameters.get('dim', 32),
+            depth=hyperparameters.get('depth', 6),
+            heads=hyperparameters.get('heads', 8),
+            attn_dropout=hyperparameters.get('attn_dropout', 0.1),
+            ff_dropout=hyperparameters.get('ff_dropout', 0.1),
+            mlp_hidden_mults=(4, 2), # Default from library
+            mlp_act=nn.ReLU(), # Default from library
+            dim_out=output_dim if task_type == 'Classification' else 1 # For regression, dim_out is 1
         )
     else:
         raise ValueError("Wrong choice of models.")

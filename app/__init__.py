@@ -3,7 +3,7 @@ from flask import Flask
 from config import Config
 
 def create_app(config_class=Config):
-    app = Flask(__name__)
+    app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_class)
 
     # Ensure the instance folder exists
@@ -12,12 +12,11 @@ def create_app(config_class=Config):
     except OSError:
         pass
 
-    # Ensure the upload folder exists
-    try:
+    # Create the upload folder if it doesn't exist
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
         os.makedirs(app.config['UPLOAD_FOLDER'])
-    except OSError:
-        pass
 
+    # Register blueprints
     from app import routes
     app.register_blueprint(routes.bp)
 

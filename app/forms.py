@@ -24,6 +24,15 @@ class ModelConfigureForm(FlaskForm):
         validators=[DataRequired()]
     )
     model = SelectField('Model', choices=[], validators=[DataRequired()])
+    hyperparameter_mode = SelectField(
+        'Hyperparameter Mode',
+        choices=[
+            ('Automatic', 'Automatic'),
+            ('Manual', 'Manual')
+        ],
+        default='Automatic',
+        validators=[DataRequired()]
+    )
     submit = SubmitField('Proceed to Data Configuration')
 
 class DataConfigureForm(FlaskForm):

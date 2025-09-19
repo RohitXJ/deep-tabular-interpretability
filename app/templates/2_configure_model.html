@@ -16,6 +16,18 @@
             {{ form.model() }}
         </p>
 
+        <div id="dl_options" style="display: none;">
+            <p>
+                {{ form.hyperparameter_mode.label }}<br>
+                {{ form.hyperparameter_mode() }}
+            </p>
+
+            <div id="manual_hyperparameters" style="display: none;">
+                <h4>Hyperparameters</h4>
+                <div id="hyperparameter-fields"></div>
+            </div>
+        </div>
+
         <p>{{ form.submit() }}</p>
     </form>
 
@@ -23,6 +35,40 @@
         document.addEventListener('DOMContentLoaded', function () {
             const predictionTypeSelect = document.getElementById('prediction_type');
             const modelSelect = document.getElementById('model');
+            const dlOptionsDiv = document.getElementById('dl_options');
+            const hyperparameterModeSelect = document.getElementById('hyperparameter_mode');
+            const manualHyperparametersDiv = document.getElementById('manual_hyperparameters');
+            const hyperparameterFieldsDiv = document.getElementById('hyperparameter-fields');
+            const dlModels = {{ dl_models | tojson }};
+            const defaultHyperparameters = {{ default_hyperparameters | tojson }};
+
+            function updateModelAndHyperparameters() {
+                const selectedModel = modelSelect.value;
+                if (dlModels.includes(selectedModel)) {
+                    dlOptionsDiv.style.display = 'block';
+                    if (hyperparameterModeSelect.value === 'Manual') {
+                        manualHyperparametersDiv.style.display = 'block';
+                        hyperparameterFieldsDiv.innerHTML = '';
+                        const params = defaultHyperparameters[selectedModel];
+                        for (const key in params) {
+                            const label = document.createElement('label');
+                            label.textContent = key;
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.name = 'hyperparam_' + key;
+                            input.value = params[key];
+                            hyperparameterFieldsDiv.appendChild(label);
+                            hyperparameterFieldsDiv.appendChild(input);
+                            hyperparameterFieldsDiv.appendChild(document.createElement('br'));
+                        }
+                    } else {
+                        manualHyperparametersDiv.style.display = 'none';
+                    }
+                } else {
+                    dlOptionsDiv.style.display = 'none';
+                    manualHyperparametersDiv.style.display = 'none';
+                }
+            }
 
             predictionTypeSelect.addEventListener('change', function () {
                 const predictionType = this.value;
@@ -36,8 +82,15 @@
                             option.textContent = model.text;
                             modelSelect.appendChild(option);
                         });
+                        updateModelAndHyperparameters(); // Update after populating
                     });
             });
+
+            modelSelect.addEventListener('change', updateModelAndHyperparameters);
+            hyperparameterModeSelect.addEventListener('change', updateModelAndHyperparameters);
+
+            // Initial update on page load
+            updateModelAndHyperparameters();
         });
     </script>
 {% endblock %}

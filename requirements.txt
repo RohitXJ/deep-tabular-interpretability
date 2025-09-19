@@ -3,11 +3,6 @@ numpy
 scikit-learn
 imblearn
 matplotlib
-seaborn
-shap
-captum
-streamlit
-plotly
 xgboost
 lightgbm
 catboost
@@ -16,7 +11,6 @@ imbalanced-learn
 Flask
 Flask-WTF
 python-dotenv
-torch==1.7
-rtdl_revisiting_models
-pytorch-tabnet2
+
+pytorch-tabnet>=4.0
 tab-transformer-pytorch

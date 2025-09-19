@@ -1,3 +1,4 @@
+import torch
 import uuid
 import matplotlib
 matplotlib.use('Agg')
@@ -9,7 +10,7 @@ import shutil
 import time
 import json
 from flask import (
-    Blueprint, render_template, redirect, url_for, session, current_app, request, flash, jsonify, Response
+    Blueprint, render_template, redirect, url_for, session, current_app, request, flash, jsonify
 )
 from werkzeug.utils import secure_filename
 from app.forms import UploadForm, ModelConfigureForm, DataConfigureForm
@@ -18,30 +19,37 @@ from app.forms import UploadForm, ModelConfigureForm, DataConfigureForm
 from data_process import (
     encode_categorical,
     feature_selection,
-    feature_search,
     handle_imbalance,
     handle_missing_values,
-    imp_plot,
     load_dataset,
     scale_numeric,
     split_dataset,
+    feature_search,
+    imp_plot
 )
-from model_hub import ML_model_eval, ML_models_call, ML_model_train, DL_models_call, DL_model_train, DL_model_eval
+from model_hub import (
+    ML_model_eval, 
+    ML_models_call, 
+    ML_model_train, 
+    DL_models_call, 
+    DL_model_train, 
+    DL_model_eval
+)
 
 bp = Blueprint('main', __name__, url_prefix='/')
 
 MODEL_CHOICES = {
     "Classification": {
         1:"Logistic Regression",2:"SVM",3:"Random Forest Classifier",4:"XGBoost",5:"LightGBM",6:"CatBoost",
-        7:"FNN", 8:"TabNet", 9:"TabTransformer", 10:"NODE", 11:"FT-Transformer"
+        7:"FNN", 8:"TabNet", 9:"TabTransformer"
     },
     "Regression": {
         1:"Linear Regression",2:"Ridge",3:"Lasso",4:"Random Forest Regressor",5:"XGBoost",6:"LightGBM",7:"CatBoost",
-        8:"FNN", 9:"TabNet", 10:"TabTransformer", 11:"NODE", 12:"FT-Transformer"
+        8:"FNN", 9:"TabNet", 10:"TabTransformer"
     }
 }
 
-DL_MODELS = ["FNN", "TabNet", "TabTransformer", "NODE", "FT-Transformer"]
+DL_MODELS = ["FNN", "TabNet", "TabTransformer"]
 
 @bp.route('/', methods=['GET', 'POST'])
 def upload():
@@ -73,6 +81,7 @@ def configure_model():
         return redirect(url_for('main.upload'))
 
     form = ModelConfigureForm()
+
     if request.method == 'POST':
         submitted_prediction_type = request.form.get('prediction_type')
         form.model.choices = [(model_name, model_name) for _, model_name in MODEL_CHOICES.get(submitted_prediction_type, {}).items()]
@@ -81,13 +90,62 @@ def configure_model():
         form.model.choices = [(model_name, model_name) for _, model_name in MODEL_CHOICES[default_prediction_type].items()]
 
     if form.validate_on_submit():
-        session['model_config'] = {
+        model_name = form.model.data
+        hyperparameter_mode = form.hyperparameter_mode.data
+
+        model_config = {
             'prediction_type': form.prediction_type.data,
-            'model': form.model.data,
+            'model': model_name,
+            'hyperparameter_mode': hyperparameter_mode
         }
+
+        if model_name in DL_MODELS:
+            if hyperparameter_mode == 'Automatic':
+                # Automatic hyperparameter selection
+                df = pd.read_csv(session['file_path'])
+                n_samples, n_features = df.shape
+                
+                hyperparameters = {}
+                if model_name == 'FNN':
+                    if n_features > 100:
+                        hyperparameters['hidden_dims'] = [n_features * 2, n_features, n_features // 2]
+                        hyperparameters['dropout'] = 0.3
+                    else:
+                        hyperparameters['hidden_dims'] = [max(32, n_features * 2), max(32, n_features)]
+                        hyperparameters['dropout'] = 0.2
+                elif model_name == 'TabNet':
+                    hyperparameters['n_d'] = max(8, min(64, int(n_features / 3)))
+                    hyperparameters['n_a'] = hyperparameters['n_d']
+                    hyperparameters['n_steps'] = 5 if n_samples > 50000 else 3
+                elif model_name == 'TabTransformer':
+                    hyperparameters['dim'] = 32 if n_features < 50 else 64
+                    hyperparameters['depth'] = 4 if n_samples > 50000 else 2
+                    hyperparameters['heads'] = 8
+                    hyperparameters['attn_dropout'] = 0.2
+                    hyperparameters['ff_dropout'] = 0.2
+                model_config['hyperparameters'] = hyperparameters
+            else: # Manual
+                hyperparameters = {}
+                for key, value in request.form.items():
+                    if key.startswith('hyperparam_'):
+                        param_name = key.replace('hyperparam_', '')
+                        try:
+                            hyperparameters[param_name] = eval(value)
+                        except (SyntaxError, NameError):
+                            hyperparameters[param_name] = value
+                model_config['hyperparameters'] = hyperparameters
+
+        session['model_config'] = model_config
         return redirect(url_for('main.configure_data'))
 
-    return render_template('2_configure_model.html', form=form)
+    # Default hyperparameters for DL models (for manual mode)
+    default_hyperparameters = {
+        'FNN': {'hidden_dims': '[128, 128]', 'dropout': 0.1},
+        'TabNet': {'n_d': 8, 'n_a': 8, 'n_steps': 3, 'gamma': 1.3},
+        'TabTransformer': {'dim': 32, 'depth': 6, 'heads': 8, 'attn_dropout': 0.1, 'ff_dropout': 0.1}
+    }
+
+    return render_template('2_configure_model.html', form=form, dl_models=DL_MODELS, default_hyperparameters=default_hyperparameters)
 
 @bp.route('/configure_data', methods=['GET', 'POST'])
 def configure_data():
@@ -208,36 +266,42 @@ def run_analysis():
 
         if model_name in DL_MODELS:
             # DL Model Handling
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
             df, scaler = scale_numeric(df, target_col, "DL", model_name, prediction_type)
             df, encoders = encode_categorical(df, encoding_type="label")
             X = df.drop(columns=[target_col], axis="columns")
             y = df[target_col]
 
+            # Get final feature lists
+            final_features = X.columns.tolist()
+            cat_features = [col for col in feature_analysis.get('categorical_features', []) if col in final_features]
+            num_features_list = [col for col in feature_analysis.get('numerical_features', []) if col in final_features]
+
             input_dim = X.shape[1]
             output_dim = len(y.unique()) if prediction_type == "Classification" else 1
             
-            cat_features = feature_analysis.get('categorical_features', [])
-            num_features_list = feature_analysis.get('numerical_features', [])
-            
             cat_cardinalities = [len(encoders[col].classes_) for col in cat_features if col in encoders]
-            n_num_features = len(num_features_list)
 
             X, y = handle_imbalance(X, y, task_type=prediction_type)
             train_ready_data = split_dataset(X, y, test_size=0.3)
+
+            cat_idxs = [X.columns.get_loc(col) for col in cat_features]
 
             RAW_model = DL_models_call(
                 model=model_name,
                 task_type=prediction_type,
                 input_dim=input_dim,
                 output_dim=output_dim,
+                cat_idxs=cat_idxs,
                 cat_cardinalities=cat_cardinalities,
-                n_num_features=n_num_features
+                hyperparameters=config.get('hyperparameters', {}),
+                device=device
             )
-            trained_model = DL_model_train(model=RAW_model, data=[train_ready_data[0], train_ready_data[2]])
+            trained_model = DL_model_train(model=RAW_model, data=[train_ready_data[0], train_ready_data[2]], task_type=prediction_type, cat_features=cat_features, num_features=num_features_list, device=device)
 
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
-            DL_model_eval(model=trained_model, test_data=[train_ready_data[1], train_ready_data[3]], type=prediction_type)
+            DL_model_eval(model=trained_model, test_data=[train_ready_data[1], train_ready_data[3]], type=prediction_type, cat_features=cat_features, num_features=num_features_list, device=device)
             sys.stdout = old_stdout
             report = captured_output.getvalue()
 
