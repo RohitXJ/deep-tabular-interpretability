@@ -9,6 +9,7 @@ import io
 import shutil
 import time
 import json
+import joblib
 from flask import (
     Blueprint, render_template, redirect, url_for, session, current_app, request, flash, jsonify
 )
@@ -33,7 +34,8 @@ from model_hub import (
     ML_model_train, 
     DL_models_call, 
     DL_model_train, 
-    DL_model_eval
+    DL_model_eval,
+    interpretation
 )
 
 bp = Blueprint('main', __name__, url_prefix='/')
@@ -244,6 +246,9 @@ def run_analysis():
     file_path = session.get('file_path')
     feature_analysis = session.get('feature_analysis')
     config = session.get('config')
+    session_id = uuid.uuid4().hex
+    interp_dir = os.path.join(current_app.instance_path, 'interpretations', session_id)
+    os.makedirs(interp_dir, exist_ok=True)
 
     try:
         if not all([file_path, config, feature_analysis]):
@@ -265,64 +270,71 @@ def run_analysis():
         df = pd.DataFrame(df[extracted_features])
 
         if model_name in DL_MODELS:
-            # DL Model Handling
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
             df, scaler = scale_numeric(df, target_col, "DL", model_name, prediction_type)
             df, encoders = encode_categorical(df, encoding_type="label")
             X = df.drop(columns=[target_col], axis="columns")
             y = df[target_col]
 
-            # Get final feature lists
             final_features = X.columns.tolist()
             cat_features = [col for col in feature_analysis.get('categorical_features', []) if col in final_features]
             num_features_list = [col for col in feature_analysis.get('numerical_features', []) if col in final_features]
 
-            input_dim = X.shape[1]
-            output_dim = len(y.unique()) if prediction_type == "Classification" else 1
-            
-            cat_cardinalities = [len(encoders[col].classes_) for col in cat_features if col in encoders]
+            config['dl_params'] = {
+                'input_dim': X.shape[1],
+                'output_dim': len(y.unique()) if prediction_type == "Classification" else 1,
+                'cat_idxs': [X.columns.get_loc(col) for col in cat_features],
+                'cat_cardinalities': [len(encoders[col].classes_) for col in cat_features if col in encoders],
+                'cat_features': cat_features,
+                'num_features': num_features_list
+            }
 
             X, y = handle_imbalance(X, y, task_type=prediction_type)
-            train_ready_data = split_dataset(X, y, test_size=0.3)
-
-            cat_idxs = [X.columns.get_loc(col) for col in cat_features]
+            X_train, X_test, y_train, y_test = split_dataset(X, y, test_size=0.3)
 
             RAW_model = DL_models_call(
-                model=model_name,
-                task_type=prediction_type,
-                input_dim=input_dim,
-                output_dim=output_dim,
-                cat_idxs=cat_idxs,
-                cat_cardinalities=cat_cardinalities,
-                hyperparameters=config.get('hyperparameters', {}),
-                device=device
+                model=model_name, task_type=prediction_type, 
+                input_dim=config['dl_params']['input_dim'], output_dim=config['dl_params']['output_dim'],
+                cat_idxs=config['dl_params']['cat_idxs'], cat_cardinalities=config['dl_params']['cat_cardinalities'], 
+                hyperparameters=config.get('hyperparameters', {}), device=device
             )
-            trained_model = DL_model_train(model=RAW_model, data=[train_ready_data[0], train_ready_data[2]], task_type=prediction_type, cat_features=cat_features, num_features=num_features_list, device=device)
+            trained_model = DL_model_train(model=RAW_model, data=[X_train, y_train], task_type=prediction_type, cat_features=cat_features, num_features=num_features_list, device=device)
 
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
-            DL_model_eval(model=trained_model, test_data=[train_ready_data[1], train_ready_data[3]], type=prediction_type, cat_features=cat_features, num_features=num_features_list, device=device)
+            DL_model_eval(model=trained_model, test_data=[X_test, y_test], type=prediction_type, cat_features=cat_features, num_features=num_features_list, device=device)
             sys.stdout = old_stdout
             report = captured_output.getvalue()
+            
+            # TabNet models have a custom save method
+            if model_name == "TabNet":
+                trained_model.save_model(os.path.join(interp_dir, 'model')) # Saves as a .zip
+            else:
+                torch.save(trained_model.state_dict(), os.path.join(interp_dir, 'model.pt'))
 
         else:
-            # ML Model Handling
             df, scaler = scale_numeric(df, target_col, "ML", model_name, prediction_type)
             df, encoders = encode_categorical(df, encoding_type="label")
             X = df.drop(columns=[target_col], axis="columns")
             y = df[target_col]
 
             X, y = handle_imbalance(X, y, task_type=prediction_type)
-            train_ready_data = split_dataset(X, y, test_size=0.3)
+            X_train, X_test, y_train, y_test = split_dataset(X, y, test_size=0.3)
 
             RAW_model = ML_models_call(type=prediction_type, model=model_name)
-            trained_model = ML_model_train(model=RAW_model, data=[train_ready_data[0], train_ready_data[2]])
+            trained_model = ML_model_train(model=RAW_model, data=[X_train, y_train])
 
             old_stdout = sys.stdout
             sys.stdout = captured_output = io.StringIO()
-            ML_model_eval(model=trained_model, test_data=[train_ready_data[1], train_ready_data[3]], type=prediction_type)
+            ML_model_eval(model=trained_model, test_data=[X_test, y_test], type=prediction_type)
             sys.stdout = old_stdout
             report = captured_output.getvalue()
+
+            joblib.dump(trained_model, os.path.join(interp_dir, 'model.joblib'))
+
+        X_test.to_csv(os.path.join(interp_dir, 'X_test.csv'), index=False)
+        with open(os.path.join(interp_dir, 'config.json'), 'w') as f:
+            json.dump(config, f)
 
         if top_n_features == 'auto':
             num_features_message = f"Model trained using <b>{num_features}</b> features (selected automatically)."
@@ -331,19 +343,21 @@ def run_analysis():
         
         final_data = {
             'final_report': report,
-            'num_features_message': num_features_message
+            'num_features_message': num_features_message,
+            'session_id': session_id
         }
 
         return jsonify(final_data)
 
     except Exception as e:
+        if os.path.exists(interp_dir):
+            shutil.rmtree(interp_dir)
         return jsonify({'error': str(e)}), 500
     
     finally:
         if file_path and os.path.exists(file_path):
             try:
                 os.remove(file_path)
-                print(f"Cleaned up file: {file_path}")
             except Exception as e:
                 print(f"Error cleaning up file {file_path}: {e}")
         
@@ -353,13 +367,77 @@ def run_analysis():
             if os.path.exists(plot_path):
                 try:
                     os.remove(plot_path)
-                    print(f"Cleaned up plot: {plot_path}")
                 except Exception as e:
                     print(f"Error cleaning up plot {plot_path}: {e}")
 
         if os.path.exists('catboost_info'):
             try:
                 shutil.rmtree('catboost_info')
-                print("Cleaned up catboost_info directory.")
             except Exception as e:
                 print(f"Error cleaning up catboost_info directory: {e}")
+
+@bp.route('/interpretation/<session_id>')
+def show_interpretation(session_id):
+    interp_dir = os.path.join(current_app.instance_path, 'interpretations', session_id)
+    plot_data = []
+    try:
+        with open(os.path.join(interp_dir, 'config.json'), 'r') as f:
+            config = json.load(f)
+        
+        model_name = config['model']
+        X_test = pd.read_csv(os.path.join(interp_dir, 'X_test.csv'))
+
+        if model_name in DL_MODELS:
+            dl_params = config['dl_params']
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            model = DL_models_call(
+                model=model_name, 
+                task_type=config['prediction_type'], 
+                input_dim=dl_params['input_dim'], 
+                output_dim=dl_params['output_dim'],
+                cat_idxs=dl_params['cat_idxs'], 
+                cat_cardinalities=dl_params['cat_cardinalities'],
+                hyperparameters=config.get('hyperparameters', {}),
+                device=device
+            )
+            if model_name == "TabNet":
+                model.load_model(os.path.join(interp_dir, 'model.zip'))
+            else:
+                model.load_state_dict(torch.load(os.path.join(interp_dir, 'model.pt')))
+                model.to(device)
+                model.eval()
+        else:
+            model = joblib.load(os.path.join(interp_dir, 'model.joblib'))
+
+        # The interpretation function now saves files in interp_dir and returns metadata
+        plots_metadata = interpretation.generate_interpretation(model, X_test, config, interp_dir)
+
+        for plot_meta in plots_metadata:
+            if plot_meta['type'] == 'image':
+                # Move plot to static folder to be served
+                src_path = os.path.join(interp_dir, plot_meta['filename'])
+                dest_path = os.path.join(current_app.root_path, 'static', 'images', plot_meta['filename'])
+                shutil.move(src_path, dest_path)
+                plot_meta['url'] = url_for('static', filename=f'images/{plot_meta["filename"]}')
+            elif plot_meta['type'] == 'html':
+                with open(os.path.join(interp_dir, plot_meta['filename']), 'r', encoding='utf-8') as f:
+                    plot_meta['html_content'] = f.read()
+            elif plot_meta['type'] == 'image_gallery':
+                urls = []
+                for filename in plot_meta['filenames']:
+                    src_path = os.path.join(interp_dir, filename)
+                    dest_path = os.path.join(current_app.root_path, 'static', 'images', filename)
+                    shutil.move(src_path, dest_path)
+                    urls.append(url_for('static', filename=f'images/{filename}'))
+                plot_meta['urls'] = urls
+            plot_data.append(plot_meta)
+
+    except Exception as e:
+        print(f"ERROR generating interpretation: {e}")
+        flash(f'Could not generate interpretation: {e}', 'danger')
+    
+    finally:
+        if os.path.exists(interp_dir):
+            shutil.rmtree(interp_dir)
+
+    return render_template('5_interpretation.html', plot_data=plot_data)

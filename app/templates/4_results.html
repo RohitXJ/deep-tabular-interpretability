@@ -10,13 +10,15 @@
         <h4>Model Evaluation Report</h4>
         <pre id="report-content"></pre>
         <hr>
-        <a href="{{ url_for('main.upload') }}">Start New Analysis</a>
+        <a id="interpretation-link" href="#" class="btn btn-primary" style="display: none;">View Interpretation</a>
+        <a href="{{ url_for('main.upload') }}" class="btn btn-secondary">Start New Analysis</a>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const featureInfo = document.getElementById('feature-info');
             const reportContent = document.getElementById('report-content');
+            const interpretationLink = document.getElementById('interpretation-link');
 
             fetch("{{ url_for('main.run_analysis') }}")
                 .then(response => response.json())
@@ -26,6 +28,10 @@
                     } else {
                         featureInfo.innerHTML = data.num_features_message;
                         reportContent.textContent = data.final_report;
+                        if (data.session_id) {
+                            interpretationLink.href = "{{ url_for('main.show_interpretation', session_id='') }}" + data.session_id;
+                            interpretationLink.style.display = 'block';
+                        }
                     }
                 })
                 .catch(error => {

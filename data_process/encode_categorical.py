@@ -1,5 +1,6 @@
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
+from pandas.api.types import is_numeric_dtype
 
 def encode_categorical(df, encoding_type="onehot")-> tuple[pd.DataFrame, dict]:
     """
@@ -12,7 +13,8 @@ def encode_categorical(df, encoding_type="onehot")-> tuple[pd.DataFrame, dict]:
         tuple: (Encoded DataFrame, mapping dictionary for label encoding)
     """
     df_copy = df.copy()
-    cat_cols = df_copy.select_dtypes(include=["object", "category"]).columns
+    # Robustly select all non-numeric columns for encoding
+    cat_cols = [col for col in df_copy.columns if not is_numeric_dtype(df_copy[col])]
 
     if encoding_type == "onehot":
         return (pd.get_dummies(df_copy, columns=cat_cols,drop_first=True), {})

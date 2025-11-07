@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="container mt-4">
+        <h3>Model Interpretation</h3>
+        <p>The plots below explain the model's behavior from different perspectives. Each section includes a guide on how to interpret the chart.</p>
+        <hr>
+
+        {% if plot_data %}
+            {% for plot in plot_data %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4>{{ plot.title }}</h4>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted"><em>{{ plot.explanation }}</em></p>
+                        
+                        {% if plot.type == 'image' %}
+                            <img src="{{ plot.url }}" alt="{{ plot.title }}" class="img-fluid">
+                        
+                        {% elif plot.type == 'html' %}
+                            <div class="shap-force-plot">
+                                {{ plot.html_content|safe }}
+                            </div>
+
+                        {% elif plot.type == 'image_gallery' %}
+                            <div class="row">
+                                {% for url in plot.urls %}
+                                    <div class="col-md-4">
+                                        <img src="{{ url }}" alt="Dependence Plot" class="img-fluid mb-3">
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-warning" role="alert">
+                Sorry, the interpretation plots could not be generated. Please check the application logs for more details.
+            </div>
+        {% endif %}
+
+        <hr>
+        <a href="{{ url_for('main.upload') }}" class="btn btn-primary">Start New Analysis</a>
+    </div>
+{% endblock %}
