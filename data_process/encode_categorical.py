@@ -20,12 +20,12 @@ def encode_categorical(df, encoding_type="onehot")-> tuple[pd.DataFrame, dict]:
         return (pd.get_dummies(df_copy, columns=cat_cols,drop_first=True), {})
 
     elif encoding_type == "label":
-        mapping = {}
+        encoders = {}
         for col in cat_cols:
             le = LabelEncoder()
             df_copy[col] = le.fit_transform(df_copy[col].astype(str))
-            mapping[col] = dict(zip(le.classes_, le.transform(le.classes_)))
-        return (df_copy, mapping)
+            encoders[col] = le
+        return (df_copy, encoders)
 
     else:
         raise ValueError("encoding_type must be 'onehot' or 'label'")

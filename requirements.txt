@@ -12,10 +12,6 @@ Flask
 Flask-WTF
 python-dotenv
 
-pytorch-tabnet>=4.0
-tab-transformer-pytorch
-
 shap
 joblib
-torch
 ipython

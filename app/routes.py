@@ -1,4 +1,4 @@
-import torch
+
 import uuid
 import matplotlib
 matplotlib.use('Agg')
@@ -32,9 +32,6 @@ from model_hub import (
     ML_model_eval, 
     ML_models_call, 
     ML_model_train, 
-    DL_models_call, 
-    DL_model_train, 
-    DL_model_eval,
     interpretation
 )
 
@@ -42,16 +39,12 @@ bp = Blueprint('main', __name__, url_prefix='/')
 
 MODEL_CHOICES = {
     "Classification": {
-        1:"Logistic Regression",2:"SVM",3:"Random Forest Classifier",4:"XGBoost",5:"LightGBM",6:"CatBoost",
-        7:"FNN", 8:"TabNet", 9:"TabTransformer"
+        1:"Logistic Regression",2:"SVM",3:"Random Forest Classifier",4:"XGBoost",5:"LightGBM",6:"CatBoost"
     },
     "Regression": {
-        1:"Linear Regression",2:"Ridge",3:"Lasso",4:"Random Forest Regressor",5:"XGBoost",6:"LightGBM",7:"CatBoost",
-        8:"FNN", 9:"TabNet", 10:"TabTransformer"
+        1:"Linear Regression",2:"Ridge",3:"Lasso",4:"Random Forest Regressor",5:"XGBoost",6:"LightGBM",7:"CatBoost"
     }
 }
-
-DL_MODELS = ["FNN", "TabNet", "TabTransformer"]
 
 @bp.route('/', methods=['GET', 'POST'])
 def upload():
@@ -101,53 +94,10 @@ def configure_model():
             'hyperparameter_mode': hyperparameter_mode
         }
 
-        if model_name in DL_MODELS:
-            if hyperparameter_mode == 'Automatic':
-                # Automatic hyperparameter selection
-                df = pd.read_csv(session['file_path'])
-                n_samples, n_features = df.shape
-                
-                hyperparameters = {}
-                if model_name == 'FNN':
-                    if n_features > 100:
-                        hyperparameters['hidden_dims'] = [n_features * 2, n_features, n_features // 2]
-                        hyperparameters['dropout'] = 0.3
-                    else:
-                        hyperparameters['hidden_dims'] = [max(32, n_features * 2), max(32, n_features)]
-                        hyperparameters['dropout'] = 0.2
-                elif model_name == 'TabNet':
-                    hyperparameters['n_d'] = max(8, min(64, int(n_features / 3)))
-                    hyperparameters['n_a'] = hyperparameters['n_d']
-                    hyperparameters['n_steps'] = 5 if n_samples > 50000 else 3
-                elif model_name == 'TabTransformer':
-                    hyperparameters['dim'] = 32 if n_features < 50 else 64
-                    hyperparameters['depth'] = 4 if n_samples > 50000 else 2
-                    hyperparameters['heads'] = 8
-                    hyperparameters['attn_dropout'] = 0.2
-                    hyperparameters['ff_dropout'] = 0.2
-                model_config['hyperparameters'] = hyperparameters
-            else: # Manual
-                hyperparameters = {}
-                for key, value in request.form.items():
-                    if key.startswith('hyperparam_'):
-                        param_name = key.replace('hyperparam_', '')
-                        try:
-                            hyperparameters[param_name] = eval(value)
-                        except (SyntaxError, NameError):
-                            hyperparameters[param_name] = value
-                model_config['hyperparameters'] = hyperparameters
-
         session['model_config'] = model_config
         return redirect(url_for('main.configure_data'))
 
-    # Default hyperparameters for DL models (for manual mode)
-    default_hyperparameters = {
-        'FNN': {'hidden_dims': '[128, 128]', 'dropout': 0.1},
-        'TabNet': {'n_d': 8, 'n_a': 8, 'n_steps': 3, 'gamma': 1.3},
-        'TabTransformer': {'dim': 32, 'depth': 6, 'heads': 8, 'attn_dropout': 0.1, 'ff_dropout': 0.1}
-    }
-
-    return render_template('2_configure_model.html', form=form, dl_models=DL_MODELS, default_hyperparameters=default_hyperparameters)
+    return render_template('2_configure_model.html', form=form)
 
 @bp.route('/configure_data', methods=['GET', 'POST'])
 def configure_data():
@@ -269,68 +219,24 @@ def run_analysis():
         extracted_features.append(target_col)
         df = pd.DataFrame(df[extracted_features])
 
-        if model_name in DL_MODELS:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            df, scaler = scale_numeric(df, target_col, "DL", model_name, prediction_type)
-            df, encoders = encode_categorical(df, encoding_type="label")
-            X = df.drop(columns=[target_col], axis="columns")
-            y = df[target_col]
+        df, scaler = scale_numeric(df, target_col, "ML", model_name, prediction_type)
+        df, encoders = encode_categorical(df, encoding_type="label")
+        X = df.drop(columns=[target_col], axis="columns")
+        y = df[target_col]
 
-            final_features = X.columns.tolist()
-            cat_features = [col for col in feature_analysis.get('categorical_features', []) if col in final_features]
-            num_features_list = [col for col in feature_analysis.get('numerical_features', []) if col in final_features]
+        X, y = handle_imbalance(X, y, task_type=prediction_type)
+        X_train, X_test, y_train, y_test = split_dataset(X, y, test_size=0.3)
 
-            config['dl_params'] = {
-                'input_dim': X.shape[1],
-                'output_dim': len(y.unique()) if prediction_type == "Classification" else 1,
-                'cat_idxs': [X.columns.get_loc(col) for col in cat_features],
-                'cat_cardinalities': [len(encoders[col].classes_) for col in cat_features if col in encoders],
-                'cat_features': cat_features,
-                'num_features': num_features_list
-            }
+        RAW_model = ML_models_call(type=prediction_type, model=model_name)
+        trained_model = ML_model_train(model=RAW_model, data=[X_train, y_train])
 
-            X, y = handle_imbalance(X, y, task_type=prediction_type)
-            X_train, X_test, y_train, y_test = split_dataset(X, y, test_size=0.3)
+        old_stdout = sys.stdout
+        sys.stdout = captured_output = io.StringIO()
+        ML_model_eval(model=trained_model, test_data=[X_test, y_test], type=prediction_type)
+        sys.stdout = old_stdout
+        report = captured_output.getvalue()
 
-            RAW_model = DL_models_call(
-                model=model_name, task_type=prediction_type, 
-                input_dim=config['dl_params']['input_dim'], output_dim=config['dl_params']['output_dim'],
-                cat_idxs=config['dl_params']['cat_idxs'], cat_cardinalities=config['dl_params']['cat_cardinalities'], 
-                hyperparameters=config.get('hyperparameters', {}), device=device
-            )
-            trained_model = DL_model_train(model=RAW_model, data=[X_train, y_train], task_type=prediction_type, cat_features=cat_features, num_features=num_features_list, device=device)
-
-            old_stdout = sys.stdout
-            sys.stdout = captured_output = io.StringIO()
-            DL_model_eval(model=trained_model, test_data=[X_test, y_test], type=prediction_type, cat_features=cat_features, num_features=num_features_list, device=device)
-            sys.stdout = old_stdout
-            report = captured_output.getvalue()
-            
-            # TabNet models have a custom save method
-            if model_name == "TabNet":
-                trained_model.save_model(os.path.join(interp_dir, 'model')) # Saves as a .zip
-            else:
-                torch.save(trained_model.state_dict(), os.path.join(interp_dir, 'model.pt'))
-
-        else:
-            df, scaler = scale_numeric(df, target_col, "ML", model_name, prediction_type)
-            df, encoders = encode_categorical(df, encoding_type="label")
-            X = df.drop(columns=[target_col], axis="columns")
-            y = df[target_col]
-
-            X, y = handle_imbalance(X, y, task_type=prediction_type)
-            X_train, X_test, y_train, y_test = split_dataset(X, y, test_size=0.3)
-
-            RAW_model = ML_models_call(type=prediction_type, model=model_name)
-            trained_model = ML_model_train(model=RAW_model, data=[X_train, y_train])
-
-            old_stdout = sys.stdout
-            sys.stdout = captured_output = io.StringIO()
-            ML_model_eval(model=trained_model, test_data=[X_test, y_test], type=prediction_type)
-            sys.stdout = old_stdout
-            report = captured_output.getvalue()
-
-            joblib.dump(trained_model, os.path.join(interp_dir, 'model.joblib'))
+        joblib.dump(trained_model, os.path.join(interp_dir, 'model.joblib'))
 
         X_test.to_csv(os.path.join(interp_dir, 'X_test.csv'), index=False)
         with open(os.path.join(interp_dir, 'config.json'), 'w') as f:
@@ -387,27 +293,7 @@ def show_interpretation(session_id):
         model_name = config['model']
         X_test = pd.read_csv(os.path.join(interp_dir, 'X_test.csv'))
 
-        if model_name in DL_MODELS:
-            dl_params = config['dl_params']
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            model = DL_models_call(
-                model=model_name, 
-                task_type=config['prediction_type'], 
-                input_dim=dl_params['input_dim'], 
-                output_dim=dl_params['output_dim'],
-                cat_idxs=dl_params['cat_idxs'], 
-                cat_cardinalities=dl_params['cat_cardinalities'],
-                hyperparameters=config.get('hyperparameters', {}),
-                device=device
-            )
-            if model_name == "TabNet":
-                model.load_model(os.path.join(interp_dir, 'model.zip'))
-            else:
-                model.load_state_dict(torch.load(os.path.join(interp_dir, 'model.pt')))
-                model.to(device)
-                model.eval()
-        else:
-            model = joblib.load(os.path.join(interp_dir, 'model.joblib'))
+        model = joblib.load(os.path.join(interp_dir, 'model.joblib'))
 
         # The interpretation function now saves files in interp_dir and returns metadata
         plots_metadata = interpretation.generate_interpretation(model, X_test, config, interp_dir)

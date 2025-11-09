@@ -1,5 +1,4 @@
 import shap
-import torch
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,28 +16,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
 
     # --- 1. Global Feature Importance --- #
     plt.figure(figsize=(10, 8))
-    if model_name == "TabNet":
-        importances = model.feature_importances_
-        feature_names = X_test.columns
-        sorted_idx = np.argsort(importances)
-        
-        plt.barh(range(len(sorted_idx)), importances[sorted_idx], align='center')
-        plt.yticks(range(len(sorted_idx)), np.array(feature_names)[sorted_idx])
-        plt.title("Global Feature Importance (TabNet)")
-        plt.xlabel("Attention Importance")
-        plt.tight_layout()
-        
-        filename = "global_importance.png"
-        plt.savefig(os.path.join(interp_dir, filename))
-        plt.close()
-        
-        plots.append({
-            'title': "Overall Feature Importance",
-            'explanation': "This chart shows how much attention the TabNet model paid to each feature while learning. Features with longer bars were more important to the model's decisions overall.",
-            'type': 'image',
-            'filename': filename
-        })
-        return plots # TabNet only provides global importance
+
 
     # --- SHAP Analysis for other models --- #
     
@@ -47,26 +25,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(X_test, check_additivity=False)
     
-    elif isinstance(model, (torch.nn.Module)):
-        background = X_test.sample(n=min(100, len(X_test)), random_state=42)
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        
-        if model_name == "TabTransformer":
-            dl_params = config['dl_params']
-            cat_features = dl_params['cat_features']
-            num_features = dl_params['num_features']
-            background_cat = torch.tensor(background[cat_features].values, dtype=torch.long).to(device)
-            background_num = torch.tensor(background[num_features].values, dtype=torch.float32).to(device)
-            # Pass inputs as a list of tensors to DeepExplainer
-            explainer = shap.DeepExplainer(model, [background_cat, background_num])
-            X_test_cat = torch.tensor(X_test[cat_features].values, dtype=torch.long).to(device)
-            X_test_num = torch.tensor(X_test[num_features].values, dtype=torch.float32).to(device)
-            shap_values = explainer.shap_values([X_test_cat, X_test_num])
-        else: # FNN
-            background_tensor = torch.tensor(background.values, dtype=torch.float32).to(device)
-            explainer = shap.DeepExplainer(model, background_tensor)
-            X_test_tensor = torch.tensor(X_test.values, dtype=torch.float32).to(device)
-            shap_values = explainer.shap_values(X_test_tensor)
+
     
     else: # Linear models, SVM, etc.
         background = shap.sample(X_test, 50)
@@ -75,16 +34,11 @@ def generate_interpretation(model, X_test, config, interp_dir):
 
     # For single output models, shap_values can sometimes be a list with one element.
     # We extract the 2D array from the list if that's the case.
-    if isinstance(shap_values, list) and len(shap_values) == 1:
-        shap_values = shap_values[0]
+    if isinstance(shap_values, list):
+        shap_values_for_plot = shap_values[0]
+    else:
+        shap_values_for_plot = shap_values
 
-    # For classification, shap_values can be a list of arrays (one per class)
-    shap_values_for_plot = shap_values
-    if prediction_type == "Classification" and isinstance(shap_values, list) and len(shap_values) > 1:
-        shap_values_for_plot = shap_values[1]
-
-    # Defensive reshape: If we have a 1D array, it means we likely have SHAP values for a single prediction.
-    # Reshape it to 2D to make it compatible with the plotting functions.
     if len(shap_values_for_plot.shape) == 1:
         shap_values_for_plot = np.reshape(shap_values_for_plot, (1, -1))
 
@@ -108,13 +62,9 @@ def generate_interpretation(model, X_test, config, interp_dir):
     # Correctly handle expected_value for multi-class
     expected_value = explainer.expected_value
     if isinstance(expected_value, list):
-        expected_value = expected_value[1]
+        expected_value = expected_value[0]
 
-    # Conditionally select SHAP values for the first prediction to avoid indexing errors
-    if len(shap_values_for_plot.shape) == 1:
-        shap_values_for_first_prediction = shap_values_for_plot
-    else:
-        shap_values_for_first_prediction = shap_values_for_plot[0,:]
+    shap_values_for_first_prediction = shap_values_for_plot[0,:]
 
     force_plot = shap.force_plot(expected_value, shap_values_for_first_prediction, X_test.iloc[0,:], show=False)
     shap.save_html(force_plot_html_path, force_plot)
