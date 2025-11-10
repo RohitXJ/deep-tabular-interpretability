@@ -14,33 +14,35 @@ def generate_interpretation(model, X_test, config, interp_dir):
     prediction_type = config['prediction_type']
     plots = []
 
-    # --- 1. Global Feature Importance --- #
+    # Initialize SHAP for JavaScript plots
+    shap.initjs()
+
+    # --- SHAP Analysis --- #
     plt.figure(figsize=(10, 8))
 
-
-    # --- SHAP Analysis for other models --- #
-    
-    # Select the correct explainer
+    # Select the correct explainer based on model type
     if model_name in TREE_BASED_MODELS:
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(X_test, check_additivity=False)
-    
-
-    
-    else: # Linear models, SVM, etc.
+    else:  # Linear models, SVM, etc.
         background = shap.sample(X_test, 50)
         explainer = shap.KernelExplainer(model.predict, background)
         shap_values = explainer.shap_values(X_test)
 
-    # For single output models, shap_values can sometimes be a list with one element.
-    # We extract the 2D array from the list if that's the case.
-    if isinstance(shap_values, list):
-        shap_values_for_plot = shap_values[0]
-    else:
-        shap_values_for_plot = shap_values
+    # Normalize SHAP values and base value for plotting, especially for classifiers.
+    # This block handles the different output formats from SHAP.
+    shap_values_for_plot = shap_values
+    base_value_for_plot = explainer.expected_value
 
-    if len(shap_values_for_plot.shape) == 1:
-        shap_values_for_plot = np.reshape(shap_values_for_plot, (1, -1))
+    if prediction_type == "Classification":
+        if isinstance(shap_values, list) and len(shap_values) == 2:
+            # Handles format: [array(class_0), array(class_1)]
+            shap_values_for_plot = shap_values[1]
+            base_value_for_plot = explainer.expected_value[1]
+        elif isinstance(shap_values, np.ndarray) and shap_values.ndim == 3:
+            # Handles format: array(n_samples, n_features, n_classes)
+            shap_values_for_plot = shap_values[:, :, 1]
+            base_value_for_plot = explainer.expected_value[1]
 
     # --- 1. Global Importance (SHAP Beeswarm) --- #
     shap.summary_plot(shap_values_for_plot, X_test, show=False)
@@ -58,19 +60,26 @@ def generate_interpretation(model, X_test, config, interp_dir):
 
     # --- 2. Individual Prediction Breakdown (Force Plot) --- #
     force_plot_html_path = os.path.join(interp_dir, "force_plot.html")
-    
-    # Correctly handle expected_value for multi-class
-    expected_value = explainer.expected_value
-    if isinstance(expected_value, list):
-        expected_value = expected_value[0]
 
-    shap_values_for_first_prediction = shap_values_for_plot[0,:]
+    # Safely convert the base value to a scalar float. This is critical.
+    if hasattr(base_value_for_plot, 'item'):
+        # This is the correct way to get a scalar from a numpy array/float
+        final_base_value = base_value_for_plot.item()
+    else:
+        # It's already a standard Python float
+        final_base_value = base_value_for_plot
 
-    force_plot = shap.force_plot(expected_value, shap_values_for_first_prediction, X_test.iloc[0,:], show=False)
+    # Generate a stacked force plot for all test instances.
+    force_plot = shap.plots.force(
+        final_base_value,
+        shap_values_for_plot,
+        X_test,
+        show=False
+    )
     shap.save_html(force_plot_html_path, force_plot)
     plots.append({
         'title': "Individual Prediction Breakdown (The Why)",
-        'explanation': "This chart explains one single prediction. The 'base value' is the average prediction. Red arrows show features that pushed this prediction higher than the average; blue arrows pushed it lower. Bigger arrows mean a bigger impact.",
+        'explanation': "This chart explains predictions for your entire test set, stacked together. The 'base value' is the average prediction. Red arrows show features that pushed a prediction higher; blue arrows pushed it lower. You can use the dropdown to explore different features.",
         'type': 'html',
         'filename': "force_plot.html"
     })
@@ -83,7 +92,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
 
     dependence_plots = []
     for feature in top_features:
-        shap.dependence_plot(feature, shap_values_for_plot, X_test, show=False)
+        shap.dependence_plot(feature, shap_values_for_plot, X_test, interaction_index=None, show=False)
         plt.tight_layout()
         filename_dep = f"dependence_{feature}.png"
         plt.savefig(os.path.join(interp_dir, filename_dep))
