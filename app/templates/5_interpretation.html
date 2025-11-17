@@ -1,14 +1,31 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div class="d-flex justify-content-center">
+  <ul class="nav nav-pills nav-fill gap-2 p-1 small bg-light border rounded-5 shadow-sm" style="--bs-nav-link-color: var(--bs-secondary-color); --bs-nav-pills-link-active-color: var(--bs-primary-color-rgb); --bs-nav-pills-link-active-bg: var(--bs-white);">
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">1. Upload</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">2. Configure</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">3. Results</button>
+    </li>
+     <li class="nav-item">
+      <button class="nav-link active rounded-5" type="button">4. Interpretation</button>
+    </li>
+  </ul>
+</div>
+<hr>
     <div class="container mt-4">
-        <h3>Model Interpretation</h3>
+        <h2>Model Interpretation</h2>
         <p>The plots below explain the model's behavior from different perspectives. Each section includes a guide on how to interpret the chart.</p>
         <hr>
 
         {% if plot_data %}
             {% for plot in plot_data %}
-                <div class="card mb-4">
+                <div class="interpretation-section">
                     <div class="card-header">
                         <h4>{{ plot.title }}</h4>
                     </div>
@@ -16,7 +33,7 @@
                         <p class="text-muted"><em>{{ plot.explanation }}</em></p>
                         
                         {% if plot.type == 'image' %}
-                            <img src="{{ plot.url }}" alt="{{ plot.title }}" class="img-fluid">
+                            <img src="{{ plot.url }}" alt="{{ plot.title }}" class="img-fluid interpretation-image">
                         
                         {% elif plot.type == 'html' %}
                             <div class="shap-force-plot">
@@ -24,7 +41,7 @@
                             </div>
 
                         {% elif plot.type == 'image_gallery' %}
-                            <div class="row">
+                            <div class="row interpretation-gallery">
                                 {% for url in plot.urls %}
                                     <div class="col-md-4">
                                         <img src="{{ url }}" alt="Dependence Plot" class="img-fluid mb-3">

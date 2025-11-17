@@ -14,6 +14,31 @@ def generate_interpretation(model, X_test, config, interp_dir):
     prediction_type = config['prediction_type']
     plots = []
 
+    # --- Subsample data if too wide --- #
+    max_features = config.get('max_interpretation_features', 2000) # Get from config, default to 2000
+    if X_test.shape[1] > max_features:
+        print(f"Dataset has {X_test.shape[1]} features, subsampling to {max_features} for SHAP analysis.")
+        # Get feature importances to guide sampling
+        if hasattr(model, 'feature_importances_'):
+            importances = pd.Series(model.feature_importances_, index=X_test.columns)
+            
+            # Calculate top_n and random_n based on max_features
+            top_n = int(max_features * 0.8)
+            random_n = max_features - top_n
+
+            top_features = importances.nlargest(top_n).index.tolist()
+            remaining_features = [col for col in X_test.columns if col not in top_features]
+            
+            # Ensure we don't try to sample more than available remaining features
+            random_sample_count = min(random_n, len(remaining_features))
+            random_sample = np.random.choice(remaining_features, random_sample_count, replace=False).tolist()
+            
+            final_cols = top_features + random_sample
+        else: # Fallback to random sampling if no importances
+            final_cols = np.random.choice(X_test.columns, max_features, replace=False).tolist()
+        
+        X_test = X_test[final_cols]
+
     # Initialize SHAP for JavaScript plots
     shap.initjs()
 

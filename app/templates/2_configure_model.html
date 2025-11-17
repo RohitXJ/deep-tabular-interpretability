@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div class="d-flex justify-content-center">
+  <ul class="nav nav-pills nav-fill gap-2 p-1 small bg-light border rounded-5 shadow-sm" style="--bs-nav-link-color: var(--bs-secondary-color); --bs-nav-pills-link-active-color: var(--bs-primary-color-rgb); --bs-nav-pills-link-active-bg: var(--bs-white);">
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">1. Upload</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link active rounded-5" type="button">2. Configure</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">3. Results</button>
+    </li>
+     <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">4. Interpretation</button>
+    </li>
+  </ul>
+</div>
+<hr>
     <h3>Step 2: Select Model</h3>
     <p>Dataset: <strong>{{ session.get('filename', 'N/A') }}</strong></p>
     <form method="POST" novalidate>

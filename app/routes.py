@@ -239,6 +239,7 @@ def run_analysis():
         joblib.dump(trained_model, os.path.join(interp_dir, 'model.joblib'))
 
         X_test.to_csv(os.path.join(interp_dir, 'X_test.csv'), index=False)
+        config['max_interpretation_features'] = 2000 # Default value for interpretation feature limit
         with open(os.path.join(interp_dir, 'config.json'), 'w') as f:
             json.dump(config, f)
 
