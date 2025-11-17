@@ -78,7 +78,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
     plt.close()
     plots.append({
         'title': "Overall Feature Importance (The What)",
-        'explanation': "This chart is like a leaderboard for your features. Features at the top have the most impact on predictions. Each dot is a prediction from your data. Red dots mean a high feature value pushed the prediction up; blue dots mean a low feature value pushed it down.",
+        'explanation': "This plot shows the overall importance and impact of each feature on the model's predictions. Each row represents a feature, ordered by its importance (top features are most impactful). Each dot is a data point from your dataset. The position of the dot on the horizontal axis indicates the SHAP value for that feature, showing how much that feature's value contributed to pushing the prediction higher or lower. The color of the dot (red to blue) indicates the original value of the feature for that data point (red for high values, blue for low values). This helps you understand which features are most influential and how their values affect the outcome.",
         'type': 'image',
         'filename': filename_summary
     })
@@ -104,7 +104,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
     shap.save_html(force_plot_html_path, force_plot)
     plots.append({
         'title': "Individual Prediction Breakdown (The Why)",
-        'explanation': "This chart explains predictions for your entire test set, stacked together. The 'base value' is the average prediction. Red arrows show features that pushed a prediction higher; blue arrows pushed it lower. You can use the dropdown to explore different features.",
+        'explanation': "This interactive plot visualizes how each feature contributes to a single prediction, or a set of predictions. The 'Base Value' (f(x) in the plot) is the average prediction across the entire dataset. The plot shows how individual feature values (represented by colored bands) push the prediction from this base value towards the final output. Features pushing the prediction higher are shown in red, and those pushing it lower are in blue. The size of each band indicates the magnitude of that feature's impact. You can interact with this plot to select individual predictions and see their unique explanations, or explore the impact of different features.",
         'type': 'html',
         'filename': "force_plot.html"
     })
@@ -126,7 +126,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
     
     plots.append({
         'title': "Feature Dependence (The How)",
-        'explanation': "These charts show how a single feature's value affects the model's prediction. It helps you answer questions like, 'Does a higher value for this feature always lead to a higher prediction?' The color of the dots shows potential interaction with another feature.",
+        'explanation': "These plots illustrate how the value of a single feature (on the X-axis) affects the SHAP value (on the Y-axis) for that feature, and thus the model's prediction. Each dot represents a data point. The X-axis shows the actual value of the feature, and the Y-axis shows its impact on the prediction. This helps answer questions like: 'Does increasing this feature's value always increase the prediction?' The color of the dots often indicates the value of another feature that the primary feature interacts with, revealing complex relationships within the model.",
         'type': 'image_gallery',
         'filenames': dependence_plots
     })
