@@ -45,6 +45,7 @@
                         featureInfo.innerHTML = data.num_features_message;
                         reportContent.textContent = data.final_report;
                         if (data.session_id) {
+                            // The show_interpretation route now handles ML/DL distinction internally
                             interpretationLink.href = "{{ url_for('main.show_interpretation', session_id='') }}" + data.session_id;
                             interpretationLink.style.display = 'block';
                         }

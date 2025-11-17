@@ -24,7 +24,7 @@ def scale_numeric(df: pd.DataFrame, target_col: str, domain_name: str, model_nam
         df_scaled[num_cols] = scaler.fit_transform(df_scaled[num_cols])
 
     # Conditionally scale target column with try-except
-    if (domain_name == "DL") or (model_name == "SVM" and prediction_type == "Regression"):
+    if (domain_name == "DL" and prediction_type == "Regression") or (model_name == "SVM" and prediction_type == "Regression"):
         try:
             df_scaled[target_col] = scaler.fit_transform(df_scaled[[target_col]])
         except KeyError:

@@ -14,6 +14,15 @@ class UploadForm(FlaskForm):
     submit = SubmitField('Upload and Proceed to Model Selection')
 
 class ModelConfigureForm(FlaskForm):
+    domain = SelectField(
+        'Model Domain',
+        choices=[
+            ('ML', 'Machine Learning'),
+            ('DL', 'Deep Learning')
+        ],
+        default='ML',
+        validators=[DataRequired()]
+    )
     prediction_type = SelectField(
         'Prediction Type',
         choices=[
@@ -24,6 +33,12 @@ class ModelConfigureForm(FlaskForm):
         validators=[DataRequired()]
     )
     model = SelectField('Model', choices=[], validators=[DataRequired()])
+    epochs = SelectField(
+        'Epochs (for Deep Learning models)',
+        choices=[(str(i), str(i)) for i in range(10, 101, 10)],
+        default='50',
+        validators=[] # Not always required, will be validated conditionally
+    )
     hyperparameter_mode = SelectField(
         'Hyperparameter Mode',
         choices=[

@@ -24,6 +24,11 @@
         {{ form.hidden_tag() }} {# CSRF protection #}
 
         <p>
+            {{ form.domain.label }}<br>
+            {{ form.domain() }}
+        </p>
+
+        <p>
             {{ form.prediction_type.label }}<br>
             {{ form.prediction_type() }}
         </p>
@@ -33,17 +38,25 @@
             {{ form.model() }}
         </p>
 
+        <p id="epochs-field" style="display: none;">
+            {{ form.epochs.label }}<br>
+            {{ form.epochs() }}
+        </p>
+
         <p>{{ form.submit() }}</p>
     </form>
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const domainSelect = document.getElementById('domain');
             const predictionTypeSelect = document.getElementById('prediction_type');
             const modelSelect = document.getElementById('model');
+            const epochsField = document.getElementById('epochs-field');
 
-            predictionTypeSelect.addEventListener('change', function () {
-                const predictionType = this.value;
-                fetch(`/models/${predictionType}`)
+            function updateModels() {
+                const domain = domainSelect.value;
+                const predictionType = predictionTypeSelect.value;
+                fetch(`/models/${domain}/${predictionType}`)
                     .then(response => response.json())
                     .then(data => {
                         modelSelect.innerHTML = ''; // Clear existing options
@@ -54,7 +67,25 @@
                             modelSelect.appendChild(option);
                         });
                     });
+            }
+
+            function toggleEpochsField() {
+                if (domainSelect.value === 'DL') {
+                    epochsField.style.display = 'block';
+                } else {
+                    epochsField.style.display = 'none';
+                }
+            }
+
+            domainSelect.addEventListener('change', function() {
+                updateModels();
+                toggleEpochsField();
             });
+            predictionTypeSelect.addEventListener('change', updateModels);
+
+            // Initial load
+            updateModels();
+            toggleEpochsField();
         });
     </script>
 {% endblock %}
