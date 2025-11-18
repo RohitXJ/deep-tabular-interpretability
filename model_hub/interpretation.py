@@ -9,7 +9,7 @@ shap.initjs()
 
 TREE_BASED_MODELS = ["Random Forest Classifier", "Random Forest Regressor", "XGBoost", "LightGBM", "CatBoost"]
 
-def generate_interpretation(model, X_test, config, interp_dir):
+def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
     model_name = config['model']
     prediction_type = config['prediction_type']
     plots = []
@@ -38,6 +38,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
             final_cols = np.random.choice(X_test.columns, max_features, replace=False).tolist()
         
         X_test = X_test[final_cols]
+        X_test_unscaled = X_test_unscaled[final_cols]
 
     # Initialize SHAP for JavaScript plots
     shap.initjs()
@@ -70,7 +71,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
             base_value_for_plot = explainer.expected_value[1]
 
     # --- 1. Global Importance (SHAP Beeswarm) --- #
-    shap.summary_plot(shap_values_for_plot, X_test, show=False)
+    shap.summary_plot(shap_values_for_plot, X_test_unscaled, show=False)
     plt.title("Overall Feature Importance and Impact")
     plt.tight_layout()
     filename_summary = "shap_summary.png"
@@ -98,7 +99,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
     force_plot = shap.plots.force(
         final_base_value,
         shap_values_for_plot,
-        X_test,
+        X_test_unscaled,
         show=False
     )
     shap.save_html(force_plot_html_path, force_plot)
@@ -117,7 +118,7 @@ def generate_interpretation(model, X_test, config, interp_dir):
 
     dependence_plots = []
     for feature in top_features:
-        shap.dependence_plot(feature, shap_values_for_plot, X_test, interaction_index=None, show=False)
+        shap.dependence_plot(feature, shap_values_for_plot, X_test_unscaled, interaction_index=None, show=False)
         plt.tight_layout()
         filename_dep = f"dependence_{feature}.png"
         plt.savefig(os.path.join(interp_dir, filename_dep))

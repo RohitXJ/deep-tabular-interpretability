@@ -252,8 +252,12 @@ def run_analysis():
         extracted_features.append(target_col)
         df = pd.DataFrame(df[extracted_features])
 
+        # Capture numeric feature columns before encoding changes dtypes
+        numeric_feature_cols = df.drop(columns=[target_col]).select_dtypes(include=np.number).columns.tolist()
+
         df, scaler = scale_numeric(df, target_col, domain, model_name, prediction_type)
         df, encoders = encode_categorical(df, encoding_type="label")
+        joblib.dump(encoders, os.path.join(interp_dir, 'encoders.joblib'))
         X = df.drop(columns=[target_col], axis="columns")
         y = df[target_col]
 
@@ -275,6 +279,12 @@ def run_analysis():
             
             joblib.dump(trained_model, os.path.join(interp_dir, 'model.joblib'))
             X_test.to_csv(os.path.join(interp_dir, 'X_test.csv'), index=False)
+
+            # Create and save unscaled data for interpretation
+            X_test_unscaled = X_test.copy()
+            if numeric_feature_cols:
+                X_test_unscaled[numeric_feature_cols] = scaler.inverse_transform(X_test[numeric_feature_cols])
+            X_test_unscaled.to_csv(os.path.join(interp_dir, 'X_test_unscaled.csv'), index=False)
 
         elif domain == "DL":
             epochs = int(config.get('epochs', 50)) # Get epochs for DL models, default to 50
@@ -315,6 +325,12 @@ def run_analysis():
             # Save feature names
             with open(os.path.join(interp_dir, 'features.json'), 'w') as f:
                 json.dump(X.columns.tolist(), f)
+
+            # Create and save unscaled data for interpretation
+            X_test_unscaled = X_test.copy()
+            if numeric_feature_cols:
+                X_test_unscaled[numeric_feature_cols] = scaler.inverse_transform(X_test[numeric_feature_cols])
+            np.save(os.path.join(interp_dir, 'X_test_unscaled_np.npy'), X_test_unscaled.values)
 
         config['max_interpretation_features'] = 2000 # Default value for interpretation feature limit
         with open(os.path.join(interp_dir, 'config.json'), 'w') as f:
@@ -365,6 +381,9 @@ def run_analysis():
 def show_interpretation(session_id):
     interp_dir = os.path.join(current_app.instance_path, 'interpretations', session_id)
     plot_data = []
+    legend_data = {}
+    template_name = '5_interpretation.html'  # Fallback template
+
     try:
         with open(os.path.join(interp_dir, 'config.json'), 'r') as f:
             config = json.load(f)
@@ -372,14 +391,23 @@ def show_interpretation(session_id):
         domain = config.get('domain', 'ML')
         model_name = config['model']
         prediction_type = config['prediction_type']
+        encoders = joblib.load(os.path.join(interp_dir, 'encoders.joblib'))
 
         if domain == "ML":
-            X_test = pd.read_csv(os.path.join(interp_dir, 'X_test.csv'))
-            model = joblib.load(os.path.join(interp_dir, 'model.joblib'))
-            plots_metadata = interpretation.generate_interpretation(model, X_test, config, interp_dir)
             template_name = '5_interpretation.html'
+            X_test = pd.read_csv(os.path.join(interp_dir, 'X_test.csv'))
+            X_test_unscaled = pd.read_csv(os.path.join(interp_dir, 'X_test_unscaled.csv'))
+            model = joblib.load(os.path.join(interp_dir, 'model.joblib'))
+            plots_metadata = interpretation.generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir)
+            
+            # Create legend data for categorical features
+            for col, encoder in encoders.items():
+                if encoder is not None:
+                    mapping = {i: label for i, label in enumerate(encoder.classes_)}
+                    legend_data[col] = mapping
+
         elif domain == "DL":
-            # Re-initialize the model architecture
+            template_name = '6_dl_interpretation.html'
             input_shape = torch.load(os.path.join(interp_dir, 'X_test_t.pt')).shape[1]
             model = dl_model_init.DL_models_call(type=prediction_type, model=model_name, input_shape=input_shape)
             model.load_state_dict(torch.load(os.path.join(interp_dir, 'model.pth')))
@@ -387,22 +415,25 @@ def show_interpretation(session_id):
 
             X_test_t = torch.load(os.path.join(interp_dir, 'X_test_t.pt'))
             X_test_scaled_np = np.load(os.path.join(interp_dir, 'X_test_scaled_np.npy'))
+            X_test_unscaled_np = np.load(os.path.join(interp_dir, 'X_test_unscaled_np.npy'))
             background_data_t = torch.load(os.path.join(interp_dir, 'background_data_t.pt'))
             with open(os.path.join(interp_dir, 'features.json'), 'r') as f:
                 features = json.load(f)
 
+            # Temporarily remove encoders from DL part as per user request
             plots_metadata = dl_interpretation.generate_dl_interpretation(
-                model, X_test_t, X_test_scaled_np, features, prediction_type, interp_dir, background_data_t
+                model, X_test_t, X_test_scaled_np, X_test_unscaled_np, features, prediction_type, interp_dir, background_data_t
             )
-            template_name = '6_dl_interpretation.html'
         else:
             raise ValueError("Unknown model domain.")
 
+        # Process plot metadata for display
         for plot_meta in plots_metadata:
             if plot_meta['type'] == 'image':
                 src_path = os.path.join(interp_dir, plot_meta['filename'])
                 dest_path = os.path.join(current_app.root_path, 'static', 'images', plot_meta['filename'])
-                shutil.move(src_path, dest_path)
+                if os.path.exists(src_path):
+                    shutil.move(src_path, dest_path)
                 plot_meta['url'] = url_for('static', filename=f'images/{plot_meta["filename"]}')
             elif plot_meta['type'] == 'html':
                 with open(os.path.join(interp_dir, plot_meta['filename']), 'r', encoding='utf-8') as f:
@@ -412,7 +443,8 @@ def show_interpretation(session_id):
                 for filename in plot_meta['filenames']:
                     src_path = os.path.join(interp_dir, filename)
                     dest_path = os.path.join(current_app.root_path, 'static', 'images', filename)
-                    shutil.move(src_path, dest_path)
+                    if os.path.exists(src_path):
+                        shutil.move(src_path, dest_path)
                     urls.append(url_for('static', filename=f'images/{filename}'))
                 plot_meta['urls'] = urls
             plot_data.append(plot_meta)
@@ -420,10 +452,9 @@ def show_interpretation(session_id):
     except Exception as e:
         print(f"ERROR generating interpretation: {e}")
         flash(f'Could not generate interpretation: {e}', 'danger')
-        template_name = '5_interpretation.html' # Fallback
     
     finally:
         if os.path.exists(interp_dir):
             shutil.rmtree(interp_dir)
 
-    return render_template(template_name, plot_data=plot_data)
+    return render_template(template_name, plot_data=plot_data, legend_data=legend_data)

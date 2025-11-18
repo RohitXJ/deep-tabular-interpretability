@@ -30,7 +30,7 @@
                         <h4>{{ plot.title }}</h4>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted"><em>{{ plot.description }}</em></p>
+                        <p class="text-muted"><em>{{ plot.description|safe }}</em></p>
                         
                         {% if plot.type == 'image' %}
                             <img src="{{ plot.url }}" alt="{{ plot.title }}" class="img-fluid interpretation-image">

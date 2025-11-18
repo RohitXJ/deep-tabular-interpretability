@@ -51,6 +51,33 @@
                         {% endif %}
                     </div>
                 </div>
+
+                {# Add the legend box after the first plot #}
+                {% if loop.index == 1 and legend_data %}
+                <div class="interpretation-section">
+                    <div class="card-header">
+                        <h4>Categorical Feature Legend</h4>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted"><em>The plots use numeric codes for categorical features. This legend shows the original text label for each code.</em></p>
+                        <div class="row">
+                        {% for col_name, mapping in legend_data.items() %}
+                            <div class="col-md-6">
+                                <h5>{{ col_name }}</h5>
+                                <ul class="list-group">
+                                    {% for number, label in mapping.items() %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        {{ label }}
+                                        <span class="badge bg-primary rounded-pill">{{ number }}</span>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
             {% endfor %}
         {% else %}
             <div class="alert alert-warning" role="alert">
