@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-center">
+  <ul class="nav nav-pills nav-fill gap-2 p-1 small bg-light border rounded-5 shadow-sm" style="--bs-nav-link-color: var(--bs-secondary-color); --bs-nav-pills-link-active-color: var(--bs-primary-color-rgb); --bs-nav-pills-link-active-bg: var(--bs-white);">
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">1. Upload</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">2. Configure</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link active rounded-5" type="button">3. Results</button>
+    </li>
+     <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">4. Interpretation</button>
+    </li>
+  </ul>
+</div>
+<hr>
+    <h3>Step 3: Configure Data for "{{ filename }}"</h3>
+    <p>
+        <b>Model:</b> {{ session.get('model_config', {}).get('model', 'N/A') }} <br>
+        <b>Task:</b> {{ session.get('model_config', {}).get('prediction_type', 'N/A') }}
+    </p>
+    <hr>
+
+    <form method="POST" novalidate>
+        {{ form.hidden_tag() }} {# CSRF protection #}
+
+        <p>
+            {{ form.target_column.label }}<br>
+            {# Add id for javascript to find this element #}
+            {{ form.target_column(id='target_column') }}
+        </p>
+
+        
+
+        {# This container will be shown by javascript after analysis #}
+        <div id="feature-analysis-container" style="display: none;">
+            <hr>
+            <h4>Feature Importance</h4>
+            <img id="feature-plot" src="" alt="Feature Importance Plot" style="max-width: 800px;">
+            <hr>
+            <p>
+                {{ form.feature_selection.label }}<br>
+                {{ form.feature_selection() }}
+            </p>
+            <p>{{ form.submit() }}</p>
+        </div>
+
+    </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const targetColumnSelect = document.getElementById('target_column');
+            const featureContainer = document.getElementById('feature-analysis-container');
+            const featurePlot = document.getElementById('feature-plot');
+            const featureSelect = document.getElementById('feature_selection');
+
+            targetColumnSelect.addEventListener('change', function () {
+                const targetColumn = this.value;
+                if (!targetColumn) return;
+
+                // Hide previous results
+                featureContainer.style.display = 'none';
+
+                // Call the analysis route
+                fetch("{{ url_for('main.run_feature_analysis') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Include CSRF token if needed by your setup, though often not for API-like routes
+                    },
+                    body: JSON.stringify({ target_column: targetColumn })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+
+                    // Populate plot and feature selection dropdown
+                    featurePlot.src = data.plot_url;
+                    featureSelect.innerHTML = ''; // Clear old options
+                    data.feature_choices.forEach(choice => {
+                        const option = document.createElement('option');
+                        option.value = choice.value;
+                        option.textContent = choice.text;
+                        featureSelect.appendChild(option);
+                    });
+
+                    // Show results
+                    featureContainer.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+        });
+    </script>
+{% endblock %}

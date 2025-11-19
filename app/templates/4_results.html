@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-center">
+  <ul class="nav nav-pills nav-fill gap-2 p-1 small bg-light border rounded-5 shadow-sm" style="--bs-nav-link-color: var(--bs-secondary-color); --bs-nav-pills-link-active-color: var(--bs-primary-color-rgb); --bs-nav-pills-link-active-bg: var(--bs-white);">
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">1. Upload</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">2. Configure</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link active rounded-5" type="button">3. Results</button>
+    </li>
+     <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">4. Interpretation</button>
+    </li>
+  </ul>
+</div>
+<hr>
+
+    <div id="results-content" style="display: block;">
+        <h3>Step 4: Analysis Results</h3>
+        <p id="feature-info"></p>
+        <hr>
+        <h4>Model Evaluation Report</h4>
+        <pre id="report-content"></pre>
+        <hr>
+        <a id="interpretation-link" href="#" class="btn btn-primary" style="display: none;">View Interpretation</a>
+        <a href="{{ url_for('main.upload') }}" class="btn btn-secondary">Start New Analysis</a>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const featureInfo = document.getElementById('feature-info');
+            const reportContent = document.getElementById('report-content');
+            const interpretationLink = document.getElementById('interpretation-link');
+
+            fetch("{{ url_for('main.run_analysis') }}")
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        reportContent.textContent = 'An error occurred: ' + data.error;
+                    } else {
+                        featureInfo.innerHTML = data.num_features_message;
+                        reportContent.textContent = data.final_report;
+                        if (data.session_id) {
+                            // The show_interpretation route now handles ML/DL distinction internally
+                            interpretationLink.href = "{{ url_for('main.show_interpretation', session_id='') }}" + data.session_id;
+                            interpretationLink.style.display = 'block';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    reportContent.textContent = 'An error occurred while fetching the results.';
+                });
+        });
+    </script>
+{% endblock %}

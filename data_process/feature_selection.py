@@ -63,9 +63,11 @@ def feature_search(X:pd.DataFrame, y:pd.DataFrame, task_type:str):
 
 
 def feature_selection(X: pd.DataFrame, top_n_features: str, sorted_cols, sorted_scores):
+    num_features = 0
     if top_n_features.isdigit():
         top_n_features = int(top_n_features)
         X = X[sorted_cols[:top_n_features]]
+        num_features = top_n_features
         print(f"Using top {top_n_features} user-selected features.")
 
     elif top_n_features.strip().lower() == 'auto':
@@ -88,19 +90,22 @@ def feature_selection(X: pd.DataFrame, top_n_features: str, sorted_cols, sorted_
             keep_indices = [0]
 
         X = X[[sorted_cols[i] for i in keep_indices]]
-        print(f"'Auto' selected top {len(keep_indices)} features (robust bands method).")
+        num_features = len(keep_indices)
+        print(f"'Auto' selected top {num_features} features (robust bands method).")
 
     else:
         print("Invalid input. No feature filtering applied.")
+        num_features = len(X.columns)
 
-    return list(X.columns)
+    return list(X.columns), num_features
 
 
 
-def imp_plot(columns, scores):
+def imp_plot(columns, scores, output_path):
     plt.figure(figsize=(10, 5))
     plt.barh(columns[::-1], scores[::-1], color="teal")
     plt.xlabel("Importance Score")
     plt.title("Feature Importance")
     plt.tight_layout()
-    plt.show()
+    plt.savefig(output_path, bbox_inches='tight')
+    plt.close() # Close the figure to free up memory

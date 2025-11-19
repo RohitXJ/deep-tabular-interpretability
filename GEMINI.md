@@ -1,0 +1,9 @@
+### Agent Instructions
+Act like a `dev` and solve the problems listed here or entered by the user, make changes in the code files, do not try to make any changes in the notebook files
+For this operation you will be needing to read codes from these two files,@ANN_architecture.py and @SHAP_for_ANNs.py so try not to change anthing here, and most importatly do you work of integrating this DL models in such a way that the existing and working ML models codes shouldnt be disturbed, i reperat , the ML models works shouldnt be hampered, make seprate files for DL part. Now even the DL part is also working so keep a check that any new changes shouldnt disrupt any existing processes.
+
+### Probelems to solve
+* I see that the interpretation data being displayed is scaled, can we show the interpretations on unscaled data over there for the users benefit ? like not everyone can understand scaled data. So first report back that is it even possible or not, then wait for the command to work onto it if possible and apply it for the ML part first.
+* If the shwoing of un-scaled data during the interpretation showing of ML models possible, then try doing it for the DL models too, atfirst look for the feasability of this idea and report back if possible or not, if possible then get it done.
+* For the DL model interpretation page, i want more detailed documentations over there that what each graphs, each param like f(x) or those which ever things are bing shown in the graphs are explained well in details so even naive users can understand it too.
+* Like ML models performance feedback of the model in the training results showing page, apply the same logic for the DL models too what will tell based on the eval params how the models are, put it like if-else conditions only as fo done for ML.

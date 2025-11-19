@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-center">
+  <ul class="nav nav-pills nav-fill gap-2 p-1 small bg-light border rounded-5 shadow-sm" style="--bs-nav-link-color: var(--bs-secondary-color); --bs-nav-pills-link-active-color: var(--bs-primary-color-rgb); --bs-nav-pills-link-active-bg: var(--bs-white);">
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">1. Upload</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link active rounded-5" type="button">2. Configure</button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">3. Results</button>
+    </li>
+     <li class="nav-item">
+      <button class="nav-link rounded-5" type="button">4. Interpretation</button>
+    </li>
+  </ul>
+</div>
+<hr>
+    <h3>Step 2: Select Model</h3>
+    <p>Dataset: <strong>{{ session.get('filename', 'N/A') }}</strong></p>
+    <form method="POST" novalidate>
+        {{ form.hidden_tag() }} {# CSRF protection #}
+
+        <p>
+            {{ form.domain.label }}<br>
+            {{ form.domain() }}
+        </p>
+
+        <p>
+            {{ form.prediction_type.label }}<br>
+            {{ form.prediction_type() }}
+        </p>
+
+        <p>
+            {{ form.model.label }}<br>
+            {{ form.model() }}
+        </p>
+
+        <p id="epochs-field" style="display: none;">
+            {{ form.epochs.label }}<br>
+            {{ form.epochs() }}
+        </p>
+
+        <p>{{ form.submit() }}</p>
+    </form>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const domainSelect = document.getElementById('domain');
+            const predictionTypeSelect = document.getElementById('prediction_type');
+            const modelSelect = document.getElementById('model');
+            const epochsField = document.getElementById('epochs-field');
+
+            function updateModels() {
+                const domain = domainSelect.value;
+                const predictionType = predictionTypeSelect.value;
+                fetch(`/models/${domain}/${predictionType}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        modelSelect.innerHTML = ''; // Clear existing options
+                        data.models.forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model.value;
+                            option.textContent = model.text;
+                            modelSelect.appendChild(option);
+                        });
+                    });
+            }
+
+            function toggleEpochsField() {
+                if (domainSelect.value === 'DL') {
+                    epochsField.style.display = 'block';
+                } else {
+                    epochsField.style.display = 'none';
+                }
+            }
+
+            domainSelect.addEventListener('change', function() {
+                updateModels();
+                toggleEpochsField();
+            });
+            predictionTypeSelect.addEventListener('change', updateModels);
+
+            // Initial load
+            updateModels();
+            toggleEpochsField();
+        });
+    </script>
+{% endblock %}

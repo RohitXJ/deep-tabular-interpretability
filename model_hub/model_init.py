@@ -1,3 +1,5 @@
+import sys
+sys.path.insert(0, './node')
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, LogisticRegression
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.svm import SVC
@@ -34,19 +36,13 @@ def ML_models_call(type: str, model: str):
         elif model == "Random Forest Classifier":
             M_obj = RandomForestClassifier()
         elif model == "XGBoost":
-            M_obj = XGBClassifier()
+            M_obj = XGBClassifier(verbosity=0)
         elif model == "LightGBM":
-            M_obj = LGBMClassifier()
+            M_obj = LGBMClassifier(verbose=-1)
         elif model == "CatBoost":
-            M_obj = CatBoostClassifier()
+            M_obj = CatBoostClassifier(verbose=0)
         else:
             raise ValueError("Wrong choice of models.")
     else:
         raise ValueError("Wrong type choice.")
     return M_obj
-
-def DL_models_call():
-    pass
-    """
-    No one touches this one, Assigned to Rohit due to involvement of complex DL architectures
-    """
