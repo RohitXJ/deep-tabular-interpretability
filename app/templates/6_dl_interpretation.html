@@ -59,6 +59,18 @@
         {% endif %}
 
         <hr>
+
+        {% if architecture_data %}
+        <details class="interpretation-section">
+            <summary><h4>Show Architecture</h4></summary>
+            <div class="card-body">
+                <p class="text-muted"><em>{{ architecture_data.doc }}</em></p>
+                <img src="{{ architecture_data.image_url }}" alt="Model Architecture" class="img-fluid">
+            </div>
+        </details>
+        <hr>
+        {% endif %}
+
         <a href="{{ url_for('main.upload') }}" class="btn btn-primary">Start New Analysis</a>
     </div>
 {% endblock %}

@@ -382,6 +382,7 @@ def show_interpretation(session_id):
     interp_dir = os.path.join(current_app.instance_path, 'interpretations', session_id)
     plot_data = []
     legend_data = {}
+    architecture_data = None
     template_name = '5_interpretation.html'  # Fallback template
 
     try:
@@ -400,7 +401,6 @@ def show_interpretation(session_id):
             model = joblib.load(os.path.join(interp_dir, 'model.joblib'))
             plots_metadata = interpretation.generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir)
             
-            # Create legend data for categorical features
             for col, encoder in encoders.items():
                 if encoder is not None:
                     mapping = {i: label for i, label in enumerate(encoder.classes_)}
@@ -420,10 +420,36 @@ def show_interpretation(session_id):
             with open(os.path.join(interp_dir, 'features.json'), 'r') as f:
                 features = json.load(f)
 
-            # Temporarily remove encoders from DL part as per user request
             plots_metadata = dl_interpretation.generate_dl_interpretation(
                 model, X_test_t, X_test_scaled_np, X_test_unscaled_np, features, prediction_type, interp_dir, background_data_t
             )
+
+            # --- Architecture Visualization ---
+            model_type_str = model_name.replace(" ", "_")
+            arch_svg_name = f"{prediction_type}_{model_type_str}.svg"
+            
+            project_root = os.path.dirname(current_app.root_path)
+            arch_svg_src = os.path.join(project_root, 'ANN_archs', arch_svg_name)
+            arch_svg_dest = os.path.join(current_app.root_path, 'static', 'images', arch_svg_name)
+
+            if os.path.exists(arch_svg_src):
+                shutil.copy(arch_svg_src, arch_svg_dest)
+                
+                docs = {
+                    "Shallow_Classification": "A Shallow Neural Network with one hidden layer. It uses ReLU activation in the hidden layer to capture non-linear patterns and a final Sigmoid function to output a probability between 0 and 1, suitable for binary classification.",
+                    "Deep_Classification": "A Deep Neural Network with multiple hidden layers. Each hidden layer uses ReLU activation to learn increasingly complex features from the data. The final Sigmoid activation function squashes the output to a probability, making it ideal for binary classification tasks.",
+                    "Shallow_Regression": "A Shallow Neural Network with a single hidden layer using ReLU activation. The final output layer is linear (no activation function), allowing the model to predict any continuous value, which is required for regression tasks.",
+                    "Deep_Regression": "A Deep Neural Network with several hidden layers, each using the ReLU activation function. The multiple layers allow the model to learn intricate patterns in the data. The output layer is linear, enabling the prediction of continuous values for regression."
+                }
+                
+                model_type_for_doc = model_name.replace(" ANN", "")
+                doc_key = f"{model_type_for_doc}_{prediction_type}"
+                
+                architecture_data = {
+                    "image_url": url_for('static', filename=f'images/{arch_svg_name}'),
+                    "doc": docs.get(doc_key, "Documentation not found for this architecture.")
+                }
+
         else:
             raise ValueError("Unknown model domain.")
 
@@ -457,4 +483,4 @@ def show_interpretation(session_id):
         if os.path.exists(interp_dir):
             shutil.rmtree(interp_dir)
 
-    return render_template(template_name, plot_data=plot_data, legend_data=legend_data)
+    return render_template(template_name, plot_data=plot_data, legend_data=legend_data, architecture_data=architecture_data)
