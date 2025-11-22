@@ -23,6 +23,11 @@
         <h3>Step 4: Analysis Results</h3>
         <p id="feature-info"></p>
         <hr>
+        <div id="dl-loss-plot-container" style="display: none; margin-bottom: 20px; text-align: center;">
+            <h4>Training Convergence</h4>
+            <p>This chart shows how the model's error (loss) decreased as it learned from the training data over multiple cycles (epochs).</p>
+            <img id="dl-loss-plot" src="" alt="Training Loss Plot" class="img-fluid" style="max-width: 700px; margin-top: 15px;">
+        </div>
         <h4>Model Evaluation Report</h4>
         <pre id="report-content"></pre>
         <hr>
@@ -35,6 +40,8 @@
             const featureInfo = document.getElementById('feature-info');
             const reportContent = document.getElementById('report-content');
             const interpretationLink = document.getElementById('interpretation-link');
+            const plotContainer = document.getElementById('dl-loss-plot-container');
+            const plotImage = document.getElementById('dl-loss-plot');
 
             fetch("{{ url_for('main.run_analysis') }}")
                 .then(response => response.json())
@@ -44,6 +51,12 @@
                     } else {
                         featureInfo.innerHTML = data.num_features_message;
                         reportContent.textContent = data.final_report;
+
+                        if (data.loss_plot_url) {
+                            plotImage.src = data.loss_plot_url;
+                            plotContainer.style.display = 'block';
+                        }
+
                         if (data.session_id) {
                             // The show_interpretation route now handles ML/DL distinction internally
                             interpretationLink.href = "{{ url_for('main.show_interpretation', session_id='') }}" + data.session_id;

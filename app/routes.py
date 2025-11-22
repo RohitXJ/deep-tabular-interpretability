@@ -245,27 +245,56 @@ def run_analysis():
 
         df = handle_missing_values(df, target_col=target_col)
 
+        # --- Feature Selection ---
         sorted_cols = feature_analysis['sorted_cols']
         sorted_scores = feature_analysis['sorted_scores']
         X_for_selection = pd.DataFrame(columns=sorted_cols)
         extracted_features, num_features = feature_selection(X_for_selection, top_n_features, sorted_cols, sorted_scores)
+        
+        # Keep only selected features + target
         extracted_features.append(target_col)
-        df = pd.DataFrame(df[extracted_features])
+        df = df[extracted_features]
 
-        # Capture numeric feature columns before encoding changes dtypes
-        numeric_feature_cols = df.drop(columns=[target_col]).select_dtypes(include=np.number).columns.tolist()
-
-        df, scaler = scale_numeric(df, target_col, domain, model_name, prediction_type)
-        df, encoders = encode_categorical(df, encoding_type="label")
-        joblib.dump(encoders, os.path.join(interp_dir, 'encoders.joblib'))
-        X = df.drop(columns=[target_col], axis="columns")
+        # --- Data Splitting ---
+        X = df.drop(columns=[target_col])
         y = df[target_col]
-
-        X, y = handle_imbalance(X, y, task_type=prediction_type)
         X_train, X_test, y_train, y_test = split_dataset(X, y, test_size=0.3)
+        
+        # Store unscaled X_test for interpretation before any transformations
+        X_test_unscaled = X_test.copy()
 
+        # --- Encoding and Scaling ---
+        numeric_cols = X_train.select_dtypes(include=np.number).columns.tolist()
+        
+        # Encode categorical features
+        X_train, encoders = encode_categorical(X_train, encoding_type="label")
+        for col, encoder in encoders.items():
+            if col in X_test.columns:
+                # Apply the same encoding to the test set, handling potential unseen labels
+                known_labels = {label for label in encoder.classes_}
+                X_test[col] = X_test[col].apply(lambda x: x if x in known_labels else 'unseen')
+                encoder_classes = np.append(encoder.classes_, 'unseen')
+                encoder.classes_ = encoder_classes
+                X_test[col] = encoder.transform(X_test[col])
+
+        joblib.dump(encoders, os.path.join(interp_dir, 'encoders.joblib'))
+
+        # Scale numeric features
+        scaler = None
+        if numeric_cols:
+            from sklearn.preprocessing import StandardScaler
+            scaler = StandardScaler()
+            X_train[numeric_cols] = scaler.fit_transform(X_train[numeric_cols])
+            X_test[numeric_cols] = scaler.transform(X_test[numeric_cols])
+        
+        # --- Handle Imbalance (on training data only) ---
+        X_train, y_train = handle_imbalance(X_train, y_train, task_type=prediction_type)
+
+        # At this point, X_train, X_test, y_train, y_test are ready for training
         report = ""
         trained_model = None
+        loss_plot_url = None
+        
         
         if domain == "ML":
             RAW_model = ML_models_call(type=prediction_type, model=model_name)
@@ -280,10 +309,7 @@ def run_analysis():
             joblib.dump(trained_model, os.path.join(interp_dir, 'model.joblib'))
             X_test.to_csv(os.path.join(interp_dir, 'X_test.csv'), index=False)
 
-            # Create and save unscaled data for interpretation
-            X_test_unscaled = X_test.copy()
-            if numeric_feature_cols:
-                X_test_unscaled[numeric_feature_cols] = scaler.inverse_transform(X_test[numeric_feature_cols])
+            # Save unscaled data (which we stored before transformations)
             X_test_unscaled.to_csv(os.path.join(interp_dir, 'X_test_unscaled.csv'), index=False)
 
         elif domain == "DL":
@@ -301,9 +327,16 @@ def run_analysis():
             trained_model, training_logs = dl_training.DL_model_train(
                 model=RAW_model, train_loader=train_loader, prediction_type=prediction_type, epochs=epochs
             )
-            report += "--- Deep Learning Model Training Logs ---\n"
-            report += training_logs
-            report += "\n--- Deep Learning Model Evaluation ---\n"
+
+            # Generate and save the training loss plot
+            loss_plot_filename = f'loss_plot_{session_id}.png'
+            loss_plot_path = os.path.join(interp_dir, loss_plot_filename)
+            dl_interpretation.plot_training_loss(training_logs, model_name, loss_plot_path)
+            loss_plot_dest = os.path.join(current_app.root_path, 'static', 'images', loss_plot_filename)
+            shutil.copy(loss_plot_path, loss_plot_dest)
+            loss_plot_url = url_for('static', filename=f'images/{loss_plot_filename}')
+
+            report += "--- Deep Learning Model Evaluation ---\n"
             
             # Evaluate DL model
             evaluation_report = dl_evaluation.DL_model_eval(
@@ -326,10 +359,7 @@ def run_analysis():
             with open(os.path.join(interp_dir, 'features.json'), 'w') as f:
                 json.dump(X.columns.tolist(), f)
 
-            # Create and save unscaled data for interpretation
-            X_test_unscaled = X_test.copy()
-            if numeric_feature_cols:
-                X_test_unscaled[numeric_feature_cols] = scaler.inverse_transform(X_test[numeric_feature_cols])
+            # Save unscaled data (which we stored before transformations)
             np.save(os.path.join(interp_dir, 'X_test_unscaled_np.npy'), X_test_unscaled.values)
 
         config['max_interpretation_features'] = 2000 # Default value for interpretation feature limit
@@ -345,7 +375,8 @@ def run_analysis():
             'final_report': report,
             'num_features_message': num_features_message,
             'session_id': session_id,
-            'domain': domain # Pass domain to results page
+            'domain': domain,
+            'loss_plot_url': loss_plot_url
         }
 
         return jsonify(final_data)
@@ -414,8 +445,8 @@ def show_interpretation(session_id):
             model.eval()
 
             X_test_t = torch.load(os.path.join(interp_dir, 'X_test_t.pt'))
-            X_test_scaled_np = np.load(os.path.join(interp_dir, 'X_test_scaled_np.npy'))
-            X_test_unscaled_np = np.load(os.path.join(interp_dir, 'X_test_unscaled_np.npy'))
+            X_test_scaled_np = np.load(os.path.join(interp_dir, 'X_test_scaled_np.npy'), allow_pickle=True)
+            X_test_unscaled_np = np.load(os.path.join(interp_dir, 'X_test_unscaled_np.npy'), allow_pickle=True)
             background_data_t = torch.load(os.path.join(interp_dir, 'background_data_t.pt'))
             with open(os.path.join(interp_dir, 'features.json'), 'r') as f:
                 features = json.load(f)

@@ -132,4 +132,28 @@ def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
         'filenames': dependence_plots
     })
 
+    # --- 4. Local Explanation (Waterfall Plot for First Prediction) --- #
+    try:
+        plt.figure()
+        # Create an explanation object for a single instance
+        explanation_for_waterfall = shap.Explanation(
+            values=shap_values_for_plot[0],
+            base_values=base_value_for_plot,
+            data=X_test_unscaled.iloc[0].values,
+            feature_names=X_test_unscaled.columns.tolist()
+        )
+        shap.plots.waterfall(explanation_for_waterfall, max_display=20, show=False)
+        plt.tight_layout()
+        filename_waterfall = "shap_waterfall.png"
+        plt.savefig(os.path.join(interp_dir, filename_waterfall))
+        plt.close()
+        plots.append({
+            'title': "Single Prediction Explained (Waterfall)",
+            'explanation': "This waterfall plot breaks down a single prediction. It starts from the 'base value' (the average prediction) at the bottom and shows how each feature's value 'pushes' the prediction up or down to arrive at the final output value at the top. Red bars represent features that increased the prediction, while blue bars represent features that decreased it. The length of the bar shows the magnitude of the feature's impact. This provides an intuitive step-by-step view of how the model arrived at its decision for one specific data point.",
+            'type': 'image',
+            'filename': filename_waterfall
+        })
+    except Exception as e:
+        print(f"Could not generate waterfall plot: {e}")
+
     return plots
