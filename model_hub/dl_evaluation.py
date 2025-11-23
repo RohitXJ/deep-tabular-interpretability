@@ -2,46 +2,55 @@ import torch
 import torch.nn as nn
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score, 
-    mean_squared_error, mean_absolute_error, r2_score
+    mean_squared_error, mean_absolute_error, r2_score, mean_absolute_percentage_error
 )
 import numpy as np
 
-def _generate_dl_regression_summary(r2, mae):
-    """Generates a qualitative summary for DL regression model performance."""
+def _generate_regression_summary(r2, mape):
+    """Generates a qualitative summary for regression model performance."""
     r2_feedback = ""
     if r2 > 0.9:
-        r2_feedback = f"R-squared ({r2:.2f}): Excellent. The model explains a very high percentage of the variance."
+        r2_feedback = f"R-squared ({r2:.2f}): Excellent. The model explains a very high percentage of the variance in the target variable."
     elif r2 > 0.8:
         r2_feedback = f"R-squared ({r2:.2f}): Good. The model explains a majority of the variance."
     elif r2 > 0.6:
-        r2_feedback = f"R-squared ({r2:.2f}): Fair. The model has moderate predictive power."
+        r2_feedback = f"R-squared ({r2:.2f}): Fair. The model has a moderate ability to predict the target variable."
+    elif r2 > 0.4:
+        r2_feedback = f"R-squared ({r2:.2f}): Limited. The model's predictive power is low."
     else:
-        r2_feedback = f"R-squared ({r2:.2f}): Needs Improvement. The model's predictive power is low."
+        r2_feedback = f"R-squared ({r2:.2f}): Poor. The model does not fit the data well."
 
-    mae_feedback = ""
-    # Note: MAE interpretation is context-dependent. These are general guidelines.
-    # A good MAE depends on the scale of the target variable.
-    # For this summary, we'll provide a general qualitative assessment.
-    # A more advanced version could compare MAE to the target's standard deviation.
-    if r2 > 0.8: # Only give strong positive feedback on MAE if R2 is also good
-        mae_feedback = f"Mean Absolute Error ({mae:.2f}): Appears reasonable for a model with this R-squared."
+    mape_feedback = ""
+    if mape < 0.1:
+        mape_feedback = f"Mean Absolute Percentage Error ({mape:.2%}): Excellent. The average prediction error is very low."
+    elif mape < 0.2:
+        mape_feedback = f"Mean Absolute Percentage Error ({mape:.2%}): Good. The model's predictions are reliable."
+    elif mape < 0.3:
+        mape_feedback = f"Mean Absolute Percentage Error ({mape:.2%}): Fair. Predictions are reasonable, but could be more precise."
     else:
-        mae_feedback = f"Mean Absolute Error ({mae:.2f}): Review this value in the context of your target variable's scale to determine its significance."
+        mape_feedback = f"Mean Absolute Percentage Error ({mape:.2%}): High. The model's predictions are often significantly different from the actual values."
 
     overall_summary = ""
-    if r2 >= 0.8:
-        overall_summary = "Overall Assessment: This appears to be a strong and reliable regression model."
-    elif r2 >= 0.6:
-        overall_summary = "Overall Assessment: A decent model, but with room for improvement in its predictive power."
+    if r2 >= 0.8 and mape <= 0.2:
+        overall_summary = "Overall Assessment: This appears to be a strong and reliable model."
+    elif r2 >= 0.6 and mape <= 0.3:
+        overall_summary = "Overall Assessment: A decent model, but with room for improvement. It provides reasonable predictions but lacks high precision."
+    elif r2 < 0.4 or mape > 0.5:
+        overall_summary = "Overall Assessment: This model has low predictive power and needs significant improvement."
     else:
-        overall_summary = "Overall Assessment: This model has low predictive power and likely needs significant improvement or a different approach."
+        overall_summary = "Overall Assessment: This model shows some potential but struggles with either fit (R-squared) or accuracy (MAPE)."
+    
+    mape_warning = ""
+    if mape > 1.0:
+        mape_warning = "\n(Note on MAPE: A very high MAPE can occur if the actual values in the test data are close to zero, as this metric is sensitive in those cases.)"
 
     summary = f"""
 --- Model Performance Summary ---
-- {r2_feedback}
-- {mae_feedback}
 
-{overall_summary}
+- {r2_feedback}
+- {mape_feedback}
+
+{overall_summary}{mape_warning}
 """
     return summary
 
@@ -77,16 +86,20 @@ def DL_model_eval(model: nn.Module, test_data: list, prediction_type: str) -> st
         y_test_np = y_test_t.numpy()
 
         mse = mean_squared_error(y_test_np, predictions_np)
+        rmse = np.sqrt(mse)
         mae = mean_absolute_error(y_test_np, predictions_np)
         r2 = r2_score(y_test_np, predictions_np)
+        mape = mean_absolute_percentage_error(y_test_np, predictions_np)
 
         report_lines.append("--- Regression Model Evaluation ---")
-        report_lines.append(f"Mean Squared Error (MSE): {mse:.4f}")
         report_lines.append(f"Mean Absolute Error (MAE): {mae:.4f}")
+        report_lines.append(f"Mean Squared Error (MSE): {mse:.4f}")
+        report_lines.append(f"Root Mean Squared Error (RMSE): {rmse:.4f}")
         report_lines.append(f"R-squared (R2): {r2:.4f}")
+        report_lines.append(f"Mean Absolute Percentage Error (MAPE): {mape:.4f}")
         
         # Add qualitative summary
-        summary = _generate_dl_regression_summary(r2, mae)
+        summary = _generate_regression_summary(r2, mape)
         report_lines.append(summary)
 
     elif prediction_type == "Classification":

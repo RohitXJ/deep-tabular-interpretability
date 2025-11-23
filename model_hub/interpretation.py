@@ -40,6 +40,12 @@ def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
         X_test = X_test[final_cols]
         X_test_unscaled = X_test_unscaled[final_cols]
 
+    # Subsample data to 1000 rows if it's larger for performance reasons
+    if X_test.shape[0] > 1000:
+        print(f"Subsampling data from {X_test.shape[0]} to 1000 rows for SHAP analysis.")
+        X_test = X_test.head(1000)
+        X_test_unscaled = X_test_unscaled.head(1000)
+
     # Initialize SHAP for JavaScript plots
     shap.initjs()
 
@@ -71,7 +77,7 @@ def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
             base_value_for_plot = explainer.expected_value[1]
 
     # --- 1. Global Importance (SHAP Beeswarm) --- #
-    shap.summary_plot(shap_values_for_plot, X_test_unscaled, show=False)
+    shap.summary_plot(shap_values_for_plot, X_test, show=False)
     plt.title("Overall Feature Importance and Impact")
     plt.tight_layout()
     filename_summary = "shap_summary.png"
@@ -79,7 +85,28 @@ def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
     plt.close()
     plots.append({
         'title': "Overall Feature Importance (The What)",
-        'explanation': "This plot shows the overall importance and impact of each feature on the model's predictions. Each row represents a feature, ordered by its importance (top features are most impactful). Each dot is a data point from your dataset. The position of the dot on the horizontal axis indicates the SHAP value for that feature, showing how much that feature's value contributed to pushing the prediction higher or lower. The color of the dot (red to blue) indicates the original value of the feature for that data point (red for high values, blue for low values). This helps you understand which features are most influential and how their values affect the outcome.",
+                'explanation': """
+            <strong>What It Is:</strong> This plot provides a rich overview of how every feature impacts the model's output. It combines feature importance with feature effects for every sample in your dataset.
+            <br><br>
+            <strong>How to Read It:</strong>
+            <ul>
+                <li><strong>Vertical Axis (Feature Importance):</strong> Features are ranked from most important (top) to least important (bottom). A feature's importance is determined by the average absolute SHAP value across all samples.</li>
+                <li><strong>Horizontal Axis (Impact on Prediction):</strong> This is the <strong>SHAP Value</strong>. It represents the feature's contribution to the prediction.
+                    <ul>
+                        <li>For <strong>Regression</strong>, positive values mean the feature pushed the prediction higher (e.g., a higher house price), while negative values pushed it lower.</li>
+                        <li>For <strong>Classification</strong>, positive values pushed the prediction towards the positive class (e.g., 'Yes', 'True', or 1), while negative values pushed it towards the negative class.</li>
+                    </ul>
+                </li>
+                <li><strong>Dot Color (Feature Value):</strong> The color shows if a feature's value was high or low for a specific data point.
+                    <ul>
+                        <li><span style="color:red;">■ Red dots</span> represent <strong>high values</strong> of a feature.</li>
+                        <li><span style="color:blue;">■ Blue dots</span> represent <strong>low values</strong> of a feature.</li>
+                        <li><strong>Black dots</strong> typically represent instances where the feature's value was <strong>missing (NaN)</strong>. The plot shows the impact this missingness has on the prediction.</li>
+                    </ul>
+                </li>
+            </ul>
+            <strong>Putting It Together:</strong> For a house price prediction, if the 'sqft_living' feature has many red dots on the right (positive SHAP values), it means that larger living areas strongly increase the predicted price.
+        """,
         'type': 'image',
         'filename': filename_summary
     })
@@ -105,7 +132,28 @@ def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
     shap.save_html(force_plot_html_path, force_plot)
     plots.append({
         'title': "Individual Prediction Breakdown (The Why)",
-        'explanation': "This interactive plot visualizes how each feature contributes to a single prediction, or a set of predictions. The 'Base Value' (f(x) in the plot) is the average prediction across the entire dataset. The plot shows how individual feature values (represented by colored bands) push the prediction from this base value towards the final output. Features pushing the prediction higher are shown in red, and those pushing it lower are in blue. The size of each band indicates the magnitude of that feature's impact. You can interact with this plot to select individual predictions and see their unique explanations, or explore the impact of different features.",
+                'explanation': """
+            <strong>What It Is:</strong> This interactive plot visualizes the forces driving a single prediction. It provides a detailed look at how each feature's value contributes to the final model output.
+            <br><br>
+            <strong>How to Read It:</strong>
+            <ul>
+                <li><strong>Base Value (E[f(x)]):</strong> This is the starting point, representing the average model prediction over the entire dataset. It's the baseline before considering the features of this specific data point.</li>
+                <li><strong>Feature Contributions:</strong>
+                    <ul>
+                        <li><span style="color:red;">■ Red arrows/blocks</span> represent features that <strong>pushed the prediction higher</strong> than the base value.</li>
+                        <li><span style="color:blue;">■ Blue arrows/blocks</span> represent features that <strong>pushed the prediction lower</strong>.</li>
+                        <li>The <strong>size</strong> of the block corresponds to the magnitude of that feature's impact.</li>
+                    </ul>
+                </li>
+                <li><strong>Output Value (f(x)):</strong> This bold number is the <strong>final prediction</strong> for this specific data point. It's the result of the base value plus the sum of all feature contributions.
+                    <ul>
+                        <li>For <strong>Regression</strong>, this is the predicted value (e.g., a price of $350,000).</li>
+                        <li>For <strong>Classification</strong>, this is the raw model output in log-odds. A positive value corresponds to a prediction for the positive class, while a negative value corresponds to the negative class.</li>
+                    </ul>
+                </li>
+            </ul>
+            You can interact with the plot to explore different predictions and see how features impact each one.
+        """,
         'type': 'html',
         'filename': "force_plot.html"
     })
@@ -127,32 +175,68 @@ def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
     
     plots.append({
         'title': "Feature Dependence (The How)",
-        'explanation': "These plots illustrate how the value of a single feature (on the X-axis) affects the SHAP value (on the Y-axis) for that feature, and thus the model's prediction. Each dot represents a data point. The X-axis shows the actual value of the feature, and the Y-axis shows its impact on the prediction. This helps answer questions like: 'Does increasing this feature's value always increase the prediction?' The color of the dots often indicates the value of another feature that the primary feature interacts with, revealing complex relationships within the model.",
+                'explanation': """
+            <strong>What It Is:</strong> These plots show how a single feature's value affects its own SHAP value, and thus the model's prediction. It helps to uncover more complex relationships like non-linearity and interactions.
+            <br><br>
+            <strong>How to Read It:</strong>
+            <ul>
+                <li><strong>Horizontal Axis:</strong> This shows the actual, unscaled value of the feature across all data points.</li>
+                <li><strong>Vertical Axis:</strong> This shows the <strong>SHAP value</strong> for that feature. A positive SHAP value means that feature's value pushed the prediction higher, while a negative SHAP value pushed it lower.</li>
+                <li><strong>Each dot</strong> is a single prediction from the dataset.</li>
+                <li><strong>Vertical Color (Interaction):</strong> The color of the dots often represents the value of a second feature that has the strongest interaction with the feature being plotted. This helps reveal how two features work together to influence the prediction. For example, it might show that the age of a house only has a strong negative impact on price if the house is also in poor condition.</li>
+            </ul>
+            <strong>Putting It Together:</strong> If the plot for 'Age' shows that as the value on the x-axis increases, the SHAP values on the y-axis trend downwards, it indicates that older items are generally predicted to have a lower value.
+        """,
         'type': 'image_gallery',
         'filenames': dependence_plots
     })
 
-    # --- 4. Local Explanation (Waterfall Plot for First Prediction) --- #
+    # --- 4. Local Explanation (Waterfall Plot for a Random Prediction) --- #
     try:
-        plt.figure()
-        # Create an explanation object for a single instance
-        explanation_for_waterfall = shap.Explanation(
-            values=shap_values_for_plot[0],
-            base_values=base_value_for_plot,
-            data=X_test_unscaled.iloc[0].values,
-            feature_names=X_test_unscaled.columns.tolist()
-        )
-        shap.plots.waterfall(explanation_for_waterfall, max_display=20, show=False)
-        plt.tight_layout()
-        filename_waterfall = "shap_waterfall.png"
-        plt.savefig(os.path.join(interp_dir, filename_waterfall))
-        plt.close()
-        plots.append({
-            'title': "Single Prediction Explained (Waterfall)",
-            'explanation': "This waterfall plot breaks down a single prediction. It starts from the 'base value' (the average prediction) at the bottom and shows how each feature's value 'pushes' the prediction up or down to arrive at the final output value at the top. Red bars represent features that increased the prediction, while blue bars represent features that decreased it. The length of the bar shows the magnitude of the feature's impact. This provides an intuitive step-by-step view of how the model arrived at its decision for one specific data point.",
-            'type': 'image',
-            'filename': filename_waterfall
-        })
+        # Select a random sample for the waterfall plot, ensuring there's data to sample from.
+        if not X_test_unscaled.empty:
+            random_index = np.random.randint(0, X_test_unscaled.shape[0])
+            
+            plt.figure()
+            # Create an explanation object for the randomly selected instance
+            explanation_for_waterfall = shap.Explanation(
+                values=shap_values_for_plot[random_index],
+                base_values=base_value_for_plot,
+                data=X_test_unscaled.iloc[random_index].values,
+                feature_names=X_test_unscaled.columns.tolist()
+            )
+            shap.plots.waterfall(explanation_for_waterfall, max_display=20, show=False)
+            plt.title(f"Breakdown of Prediction for Sample #{random_index}")
+            plt.tight_layout()
+            filename_waterfall = "shap_waterfall.png"
+            plt.savefig(os.path.join(interp_dir, filename_waterfall))
+            plt.close()
+            plots.append({
+                'title': "Single Prediction Explained (Waterfall)",
+                'explanation': """
+            <strong>What It Is:</strong> This waterfall plot provides a detailed, step-by-step breakdown of how a single prediction was made. It shows how each feature's contribution moves the prediction from the baseline to the final result.
+            <br><br>
+            <strong>How to Read It:</strong>
+            <ul>
+                <li><strong>Base Value (E[f(x)]):</strong> This is the starting point at the bottom, representing the average prediction over the entire dataset (e.g., the average house price).</li>
+                <li><strong>Feature Contributions:</strong> Each bar represents a feature's impact on this single prediction.
+                    <ul>
+                        <li><span style="color:red;">■ Red bars</span> show features that <strong>pushed the prediction higher</strong>. The number next to the feature name is its actual, unscaled value (e.g., `sqft_living = 2100`).</li>
+                        <li><span style="color:blue;">■ Blue bars</span> show features that <strong>pushed the prediction lower</strong>.</li>
+                        <li>The <strong>length</strong> of the bar shows the magnitude of the feature's impact.</li>
+                    </ul>
+                </li>
+                <li><strong>Final Prediction (f(x)):</strong> This is the final model output at the top, which is the sum of the base value and all the individual feature contributions.
+                    <ul>
+                        <li>For <strong>Regression</strong>, this is the final predicted value for this one data point.</li>
+                        <li>For <strong>Classification</strong>, this is the log-odds output for this data point. A positive value means the model predicts the positive class.</li>
+                    </ul>
+                </li>
+            </ul>
+        """,
+                'type': 'image',
+                'filename': filename_waterfall
+            })
     except Exception as e:
         print(f"Could not generate waterfall plot: {e}")
 

@@ -12,6 +12,13 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
     """
     Generates SHAP interpretation plots for Deep Learning models, including detailed explanations.
     """
+    # --- Subsample data for performance ---
+    if X_test_t.shape[0] > 1000:
+        print(f"Subsampling data from {X_test_t.shape[0]} to 1000 rows for SHAP analysis.")
+        X_test_t = X_test_t[:1000]
+        X_test_scaled_np = X_test_scaled_np[:1000]
+        X_test_unscaled_np = X_test_unscaled_np[:1000]
+
     plots_metadata = []
     model.eval()
 
@@ -98,6 +105,7 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
                     <ul>
                         <li><span style="color:red;">■ Red dots</span> represent <strong>high values</strong> of a feature.</li>
                         <li><span style="color:blue;">■ Blue dots</span> represent <strong>low values</strong> of a feature.</li>
+                        <li><strong>Black dots</strong> typically represent instances where the feature's value was <strong>missing (NaN)</strong>. The plot shows the impact this missingness has on the prediction.</li>
                     </ul>
                 </li>
                 <li><strong>Dot Position:</strong> Each dot is one sample from your data. They pile up horizontally to show the density of SHAP values for each feature.</li>
@@ -108,21 +116,24 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
 
     # --- 3. Local Interpretation (Waterfall Plot) ---
     if features_for_plot_unscaled.shape[0] > 0:
-        waterfall_plot_filename = f"shap_waterfall_plot_{prediction_type}_sample_0.png"
+        # Select a random sample for the waterfall plot
+        random_index = np.random.randint(0, features_for_plot_unscaled.shape[0])
+        
+        waterfall_plot_filename = f"shap_waterfall_plot_{prediction_type}_sample_{random_index}.png"
         waterfall_plot_path = os.path.join(interp_dir, waterfall_plot_filename)
         
         base_value = explainer.expected_value[0] if isinstance(explainer.expected_value, (np.ndarray, list)) else explainer.expected_value
 
         exp = shap.Explanation(
-            values=shap_values[0].squeeze(),
+            values=shap_values[random_index].squeeze(),
             base_values=base_value,
-            data=features_for_plot_unscaled[0], # Use unscaled data for readability
+            data=features_for_plot_unscaled[random_index], # Use unscaled data for readability
             feature_names=features
         )
         
         plt.figure(figsize=(10, 6))
         shap.plots.waterfall(exp, max_display=20, show=False)
-        plt.title("Breakdown of a Single Prediction", fontsize=16)
+        plt.title(f"Breakdown of a Single Prediction (Sample #{random_index})", fontsize=16)
         plt.tight_layout()
         plt.savefig(waterfall_plot_path)
         plt.close()
