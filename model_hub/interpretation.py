@@ -244,6 +244,16 @@ def generate_interpretation(model, X_test, X_test_unscaled, y_test, config, inte
         if not X_test_unscaled.empty:
             random_index = np.random.randint(0, X_test_unscaled.shape[0])
             
+            # --- Get actual model prediction for the selected sample ---
+            sample_for_prediction = X_test.iloc[[random_index]]
+            raw_prediction = model.predict(sample_for_prediction)[0]
+            
+            predicted_output_str = ""
+            if prediction_type == "Classification":
+                predicted_output_str = f"Predicted Class: {int(raw_prediction)}" # Ensure it's an integer for class
+            else: # Regression
+                predicted_output_str = f"Predicted Value: {raw_prediction:.2f}"
+
             plt.figure()
             # Create an explanation object for the randomly selected instance
             explanation_for_waterfall = shap.Explanation(
@@ -282,7 +292,8 @@ def generate_interpretation(model, X_test, X_test_unscaled, y_test, config, inte
             </ul>
         """,
                 'type': 'image',
-                'filename': filename_waterfall
+                'filename': filename_waterfall,
+                'predicted_output': predicted_output_str
             })
     except Exception as e:
         print(f"Could not generate waterfall plot: {e}")

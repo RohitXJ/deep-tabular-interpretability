@@ -34,6 +34,9 @@
                         
                         {% if plot.type == 'image' %}
                             <img src="{{ plot.url }}" alt="{{ plot.title }}" class="img-fluid interpretation-image">
+                            {% if plot.predicted_output %}
+                                <p class="mt-2"><strong>{{ plot.predicted_output }}</strong></p>
+                            {% endif %}
                         
                         {% elif plot.type == 'html' %}
                             <div class="shap-force-plot">

@@ -197,6 +197,8 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
                 </li>
             </ul>
         """
+        ,
+            'predicted_output': predicted_output_str
         })
     
     return plots_metadata
