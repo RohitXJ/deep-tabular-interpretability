@@ -311,6 +311,7 @@ def run_analysis():
 
             # Save unscaled data (which we stored before transformations)
             X_test_unscaled.to_csv(os.path.join(interp_dir, 'X_test_unscaled.csv'), index=False)
+            y_test.to_csv(os.path.join(interp_dir, 'y_test.csv'), index=False)
 
         elif domain == "DL":
             epochs = int(config.get('epochs', 50)) # Get epochs for DL models, default to 50
@@ -361,6 +362,7 @@ def run_analysis():
 
             # Save unscaled data (which we stored before transformations)
             np.save(os.path.join(interp_dir, 'X_test_unscaled_np.npy'), X_test_unscaled.values)
+            np.save(os.path.join(interp_dir, 'y_test_np.npy'), y_test.values)
 
         config['max_interpretation_features'] = 2000 # Default value for interpretation feature limit
         with open(os.path.join(interp_dir, 'config.json'), 'w') as f:
@@ -429,8 +431,9 @@ def show_interpretation(session_id):
             template_name = '5_interpretation.html'
             X_test = pd.read_csv(os.path.join(interp_dir, 'X_test.csv'))
             X_test_unscaled = pd.read_csv(os.path.join(interp_dir, 'X_test_unscaled.csv'))
+            y_test = pd.read_csv(os.path.join(interp_dir, 'y_test.csv'))
             model = joblib.load(os.path.join(interp_dir, 'model.joblib'))
-            plots_metadata = interpretation.generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir)
+            plots_metadata = interpretation.generate_interpretation(model, X_test, X_test_unscaled, y_test, config, interp_dir)
             
             for col, encoder in encoders.items():
                 if encoder is not None:
@@ -447,12 +450,13 @@ def show_interpretation(session_id):
             X_test_t = torch.load(os.path.join(interp_dir, 'X_test_t.pt'))
             X_test_scaled_np = np.load(os.path.join(interp_dir, 'X_test_scaled_np.npy'), allow_pickle=True)
             X_test_unscaled_np = np.load(os.path.join(interp_dir, 'X_test_unscaled_np.npy'), allow_pickle=True)
+            y_test_np = np.load(os.path.join(interp_dir, 'y_test_np.npy'), allow_pickle=True)
             background_data_t = torch.load(os.path.join(interp_dir, 'background_data_t.pt'))
             with open(os.path.join(interp_dir, 'features.json'), 'r') as f:
                 features = json.load(f)
 
             plots_metadata = dl_interpretation.generate_dl_interpretation(
-                model, X_test_t, X_test_scaled_np, X_test_unscaled_np, features, prediction_type, interp_dir, background_data_t
+                model, X_test_t, X_test_scaled_np, X_test_unscaled_np, features, prediction_type, interp_dir, background_data_t, y_test_np
             )
 
             # --- Architecture Visualization ---

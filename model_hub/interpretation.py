@@ -9,7 +9,7 @@ shap.initjs()
 
 TREE_BASED_MODELS = ["Random Forest Classifier", "Random Forest Regressor", "XGBoost", "LightGBM", "CatBoost"]
 
-def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
+def generate_interpretation(model, X_test, X_test_unscaled, y_test, config, interp_dir):
     model_name = config['model']
     prediction_type = config['prediction_type']
     plots = []
@@ -43,8 +43,12 @@ def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
     # Subsample data to 1000 rows if it's larger for performance reasons
     if X_test.shape[0] > 1000:
         print(f"Subsampling data from {X_test.shape[0]} to 1000 rows for SHAP analysis.")
-        X_test = X_test.head(1000)
-        X_test_unscaled = X_test_unscaled.head(1000)
+        # Ensure y_test is also sliced consistently with X_test
+        indices_to_keep = X_test.head(1000).index
+        X_test = X_test.loc[indices_to_keep]
+        X_test_unscaled = X_test_unscaled.loc[indices_to_keep]
+        y_test = y_test.loc[indices_to_keep]
+
 
     # Initialize SHAP for JavaScript plots
     shap.initjs()
@@ -52,14 +56,57 @@ def generate_interpretation(model, X_test, X_test_unscaled, config, interp_dir):
     # --- SHAP Analysis --- #
     plt.figure(figsize=(10, 8))
 
+    # --- NEW SAMPLING LOGIC & EXPLAINER SELECTION ---
+    if prediction_type == "Classification":
+        print("Applying stratified sampling for Classification task.")
+        y_series = y_test.squeeze()
+        n_classes = y_series.nunique()
+        
+        if n_classes == 2:
+            n_per_class = 5
+            print(f"Binary classification: selecting {n_per_class} samples per class.")
+        else:
+            n_total = max(10, n_classes)
+            n_per_class = n_total // n_classes
+            print(f"Multi-class ({n_classes} classes): selecting {n_per_class} samples per class.")
+
+        # Group by target variable and sample within each group
+        # This handles cases where a class has fewer samples than n_per_class
+        sample_indices = y_series.groupby(y_series).apply(
+            lambda x: x.sample(n=min(n_per_class, len(x)), random_state=42)
+        ).index.get_level_values(1)
+
+    else: # Regression
+        n_shap_samples = 15
+        print(f"Applying random sampling for Regression task: {n_shap_samples} samples.")
+        sample_indices = X_test.sample(n=n_shap_samples, random_state=42).index
+
+    # Create the sampled dataframes using the selected indices
+    X_test_shap = X_test.loc[sample_indices]
+    X_test_unscaled_shap = X_test_unscaled.loc[sample_indices]
+    
+    print(f"Total samples selected for SHAP analysis: {len(sample_indices)}")
+
     # Select the correct explainer based on model type
     if model_name in TREE_BASED_MODELS:
+        print("Using TreeExplainer for SHAP analysis.")
         explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(X_test, check_additivity=False)
+        print("Calculating SHAP values...")
+        shap_values = explainer.shap_values(X_test_shap, check_additivity=False)
     else:  # Linear models, SVM, etc.
-        background = shap.sample(X_test, 50)
-        explainer = shap.KernelExplainer(model.predict, background)
-        shap_values = explainer.shap_values(X_test)
+        print("Using KernelExplainer for non-tree-based model. This can be slow, applying optimizations.")
+        
+        # 1. Summarize the background data using k-means for better representation.
+        print("Summarizing background data with k-means...")
+        background_data = shap.kmeans(X_test, 100) # Use full X_test for a good background
+        
+        explainer = shap.KernelExplainer(model.predict, background_data)
+        print("Calculating SHAP values on a subset of data... (This may still take a moment)")
+        shap_values = explainer.shap_values(X_test_shap)
+
+    # After calculations, we use the smaller `_shap` versions for plotting
+    X_test = X_test_shap
+    X_test_unscaled = X_test_unscaled_shap
 
     # Normalize SHAP values and base value for plotting, especially for classifiers.
     # This block handles the different output formats from SHAP.

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # Import ANN architectures for type hinting and model loading
 from ANN_architecture import ANN_Shallow_Regression, ANN_Deep_Regression, ANN_Shallow_Classification, ANN_Deep_Classification
 
-def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscaled_np, features, prediction_type, interp_dir, background_data_t):
+def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscaled_np, features, prediction_type, interp_dir, background_data_t, y_test_np):
     """
     Generates SHAP interpretation plots for Deep Learning models, including detailed explanations.
     """
@@ -18,6 +18,42 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
         X_test_t = X_test_t[:1000]
         X_test_scaled_np = X_test_scaled_np[:1000]
         X_test_unscaled_np = X_test_unscaled_np[:1000]
+        y_test_np = y_test_np[:1000] # Subsample y_test_np too
+
+    # --- NEW SAMPLING LOGIC FOR SHAP INTERPRETATION ---
+    y_series = pd.Series(y_test_np.flatten()) # Flatten y_test_np for Series conversion
+
+    if prediction_type == "Classification":
+        print("Applying stratified sampling for Classification task.")
+        n_classes = y_series.nunique()
+        
+        if n_classes == 2:
+            n_per_class = 5
+            print(f"Binary classification: selecting {n_per_class} samples per class.")
+        else:
+            n_total = max(10, n_classes)
+            n_per_class = n_total // n_classes
+            print(f"Multi-class ({n_classes} classes): selecting {n_per_class} samples per class.")
+
+        # Group by target variable and sample within each group
+        sample_indices = y_series.groupby(y_series).apply(
+            lambda x: x.sample(n=min(n_per_class, len(x)), random_state=42)
+        ).index.get_level_values(1).values # Get original indices as numpy array
+
+    else: # Regression
+        n_shap_samples = 15
+        print(f"Applying random sampling for Regression task: {n_shap_samples} samples.")
+        # Need to sample from the original indices range
+        all_indices = np.arange(X_test_t.shape[0])
+        sample_indices = np.random.choice(all_indices, size=n_shap_samples, replace=False)
+
+    # Apply the selected indices to all relevant data arrays
+    X_test_t = X_test_t[sample_indices]
+    X_test_scaled_np = X_test_scaled_np[sample_indices]
+    X_test_unscaled_np = X_test_unscaled_np[sample_indices]
+    y_test_np = y_test_np[sample_indices] # Keep y_test_np consistent
+
+    print(f"Total samples selected for SHAP analysis: {len(sample_indices)}")
 
     plots_metadata = []
     model.eval()
@@ -65,13 +101,14 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
         'filename': bar_plot_filename,
         'title': 'Global Feature Importance (The "What")',
         'description': """
-            <strong>What It Is:</strong> This bar chart shows the average impact of each feature on the model's prediction magnitude, across the entire dataset.
+            <strong>What It Is:</strong> This bar chart shows the average impact of each feature on the model's prediction magnitude, across the entire dataset. It answers the question: "Overall, which features are the most important for the model's decisions?"
             <br><br>
             <strong>How to Read It:</strong>
             <ul>
                 <li>The features are listed on the y-axis, ordered from most important at the top to least important at the bottom.</li>
-                <li>The length of the bar on the x-axis represents the mean absolute SHAP value for that feature. A longer bar means the feature has a greater average impact on the model's predictions.</li>
-                <li>This plot gives you a straightforward ranking of which features are the most influential overall, but it does not show the direction of the impact (i.e., whether a high value of a feature increases or decreases the prediction).</li>
+                <li>The length of the bar on the x-axis represents the <strong>mean absolute SHAP value</strong> for that feature. In simple terms, a longer bar means the feature has a greater average impact on the model's predictions, regardless of whether that impact is positive or negative.</li>
+                <li><strong>Example:</strong> If this were a house price prediction model, a long bar for "sqft_living" means that the size of the house is consistently one of the most influential factors in determining the final price prediction.</li>
+                <li>This plot gives a straightforward ranking of which features are most influential overall, but it does not show the direction or nature of the impact. For that, we use the Summary (Beeswarm) Plot.</li>
             </ul>
         """
     })
@@ -90,27 +127,26 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
         'filename': summary_plot_filename,
         'title': 'Feature Impact Summary (The "How")',
         'description': """
-            <strong>What It Is:</strong> This plot provides a rich overview of how every feature impacts the model's output for every sample in your dataset. It combines feature importance with feature effects.
+            <strong>What It Is:</strong> This plot is one of the most powerful SHAP visualizations. It shows not only which features are important, but also *how* the value of that feature affects the model's output for every single sample in your dataset.
             <br><br>
             <strong>How to Read It:</strong>
             <ul>
-                <li><strong>Vertical Axis (Feature Importance):</strong> Features are ranked from most important (top) to least important (bottom). A feature's importance is the average absolute SHAP value across all samples.</li>
-                <li><strong>Horizontal Axis (Impact on Prediction):</strong> This is the <strong>SHAP Value</strong>. It shows how much a feature's value for a specific data point pushed the model's output.
+                <li><strong>Vertical Axis (Feature Importance):</strong> Features are ranked from most important (top) to least important (bottom), based on their average impact.</li>
+                <li><strong>Horizontal Axis (Impact on Prediction):</strong> This is the <strong>SHAP Value</strong>. It shows the precise impact of a feature on the final prediction.
                     <ul>
-                        <li>Values > 0 mean the feature pushed the prediction <strong>higher</strong> (e.g., higher house price, or higher probability of being a "positive" class).</li>
-                        <li>Values < 0 mean the feature pushed the prediction <strong>lower</strong>.</li>
+                        <li>Values > 0 (to the right of the center line) mean the feature pushed the prediction <strong>higher</strong> (e.g., a higher house price, or a higher probability of being in the "Yes" class).</li>
+                        <li>Values < 0 (to the left) mean the feature pushed the prediction <strong>lower</strong>.</li>
                     </ul>
                 </li>
-                <li><strong>Dot Color (Feature Value):</strong> The color of each dot shows if that feature's value was high or low for that data point.
+                <li><strong>Dot Color (Feature Value):</strong> The color of each dot shows whether that feature's value was high or low for that data point.
                     <ul>
-                        <li><span style="color:red;">■ Red dots</span> represent <strong>high values</strong> of a feature.</li>
-                        <li><span style="color:blue;">■ Blue dots</span> represent <strong>low values</strong> of a feature.</li>
-                        <li><strong>Black dots</strong> typically represent instances where the feature's value was <strong>missing (NaN)</strong>. The plot shows the impact this missingness has on the prediction.</li>
+                        <li><span style="color:red;">■ Red dots</span> represent <strong>high values</strong> of a feature (e.g., a large house).</li>
+                        <li><span style="color:blue;">■ Blue dots</span> represent <strong>low values</strong> of a feature (e.g., a small house).</li>
                     </ul>
                 </li>
-                <li><strong>Dot Position:</strong> Each dot is one sample from your data. They pile up horizontally to show the density of SHAP values for each feature.</li>
+                <li><strong>Each Dot:</strong> Every dot on the plot is a single prediction for one data sample. They pile up to show the distribution of impact for each feature.</li>
             </ul>
-            <strong>Putting It Together:</strong> For example, if the "worst radius" feature for a cancer prediction has many red dots on the right side (positive SHAP values), it strongly suggests that a larger radius significantly increases the model's prediction towards "malignant".
+            <strong>Putting It All Together (Example):</strong> Imagine a cancer prediction model. If the feature "tumor_size" has a trail of red dots extending far to the right, it tells you that high values of "tumor_size" (large tumors) consistently and strongly push the model's prediction towards "Malignant" (a higher output value). Conversely, blue dots on the left would mean small tumors push the prediction towards "Benign".
         """
     })
 
@@ -142,23 +178,27 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
             'filename': waterfall_plot_filename,
             'title': 'Single Prediction Explained (The "Why")',
             'description': """
-            <strong>What It Is:</strong> This waterfall plot dissects a single prediction to show you exactly how the model made its decision for one specific data point.
+            <strong>What It Is:</strong> This waterfall plot provides a transparent, step-by-step breakdown of how the model arrived at its final prediction for one specific data point. It's the ultimate "show your work" for the model.
             <br><br>
             <strong>How to Read It:</strong>
             <ul>
-                <li><strong>Base Value (E[f(x)]):</strong> This is the starting point at the bottom of the plot. The notation <strong>E[f(x)]</strong> represents the <em>average model output</em> over the entire training dataset. Think of this as the model's default prediction before it has seen any features for this specific data point.</li>
-                <li><strong>Feature Contributions:</strong> Each bar shows how a feature's value for this data point pushed the prediction away from the base value.
+                <li><strong>Base Value (E[f(x)]):</strong> The term <strong>E[f(x)]</strong> stands for the "Expected Value of the model's function f(x)". In simple terms, this is the <strong>average prediction</strong> over the entire dataset. It's the baseline or starting point for any prediction.
+                    <ul><li><strong>Example:</strong> If predicting house prices, this would be the average house price in your dataset (e.g., $300,000). If predicting loan default, this might be the average default rate (e.g., 5%).</li></ul>
+                </li>
+                <li><strong>Feature Contributions:</strong> Each bar represents how the value of a specific feature for this single data point moved the prediction away from the average base value.
                     <ul>
-                        <li><span style="color:red;">■ Red bars</span> are features that <strong>pushed the prediction higher</strong> (a positive impact). The longer the bar, the stronger the push.</li>
-                        <li><span style="color:blue;">■ Blue bars</span> are features that <strong>pushed the prediction lower</strong> (a negative impact).</li>
+                        <li><span style="color:red;">■ Red bars</span> show features that <strong>pushed the prediction higher</strong>. The number next to the feature name is its actual value (e.g., `sqft_living = 2100`).</li>
+                        <li><span style="color:blue;">■ Blue bars</span> show features that <strong>pushed the prediction lower</strong>.</li>
+                        <li>The <strong>length</strong> of the bar shows the magnitude of that feature's impact.</li>
                     </ul>
                 </li>
-                <li><strong>Feature Values:</strong> The numbers next to the feature names (e.g., `mean radius = 17.99`) are their actual, real-world values for this one data point, making the explanation easy to interpret.</li>
-                <li><strong>Final Prediction (f(x)):</strong> This is the final prediction value at the top of the plot. The notation <strong>f(x)</strong> represents the model's output for this <em>specific input (x)</em>. It is calculated by summing the base value (E[f(x)]) and the contributions of all the features.</li>
+                <li><strong>Final Prediction (f(x)):</strong> The term <strong>f(x)</strong> represents the model's final output for this specific input data point (x). It is calculated by summing the base value and all the individual feature contributions.
+                    <ul><li><strong>Example:</strong> After all the red and blue bars are added to the base value, we get the final prediction for this specific house, such as $450,000. For a classification, the final output is in "log-odds" space, where a positive value predicts the "Yes" class and a negative value predicts the "No" class.</li></ul>
+                </li>
             </ul>
         """
         })
-
+    
     return plots_metadata
 def plot_training_loss(loss_history, model_name, plot_path):
     """
