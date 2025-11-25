@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import joblib # Added import for joblib
+import json # Added import for json
 
 # Import ANN architectures for type hinting and model loading
 from ANN_architecture import ANN_Shallow_Regression, ANN_Deep_Regression, ANN_Shallow_Classification, ANN_Deep_Classification
@@ -55,6 +57,41 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
 
     print(f"Total samples selected for SHAP analysis: {len(sample_indices)}")
 
+    # Load encoders and features
+    try:
+        encoders_path = os.path.join(interp_dir, 'encoders.joblib')
+        if os.path.exists(encoders_path):
+            loaded_encoders = joblib.load(encoders_path)
+        else:
+            loaded_encoders = {} # No encoders if file not found
+    except Exception as e:
+        print(f"Warning: Could not load encoders from {encoders_path}. Error: {e}")
+        loaded_encoders = {}
+
+    try:
+        features_path = os.path.join(interp_dir, 'features.json')
+        with open(features_path, 'r') as f:
+            all_features = json.load(f)
+    except Exception as e:
+        print(f"Warning: Could not load features from {features_path}. Error: {e}")
+        all_features = features # Fallback to passed 'features' if file not found
+
+    categorical_cols = [col for col, encoder in loaded_encoders.items() if encoder is not None]
+    numeric_cols = [col for col in all_features if col not in categorical_cols]
+
+    # Create a DataFrame for X_test_unscaled_np to easily access columns by name
+    X_test_unscaled_df = pd.DataFrame(X_test_unscaled_np, columns=all_features)
+    X_test_scaled_df = pd.DataFrame(X_test_scaled_np, columns=all_features)
+
+    # Create mixed data array for summary plot: unscaled numerical, encoded categorical
+    X_test_for_summary_plot_numeric = X_test_unscaled_df.copy()
+    for col in categorical_cols:
+        if col in X_test_scaled_df.columns:
+            X_test_for_summary_plot_numeric[col] = X_test_scaled_df[col]
+    
+    # Convert back to numpy array after constructing the mixed DataFrame
+    X_test_for_summary_plot_numeric = X_test_for_summary_plot_numeric.values
+
     plots_metadata = []
     model.eval()
 
@@ -87,8 +124,8 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
     # Create a full Explanation object including data to prevent shape mismatches
     shap_explanation = shap.Explanation(
         values=shap_values,
-        data=features_for_plot_unscaled,
-        feature_names=features
+        data=X_test_for_summary_plot_numeric, # Use numeric data for bar plot
+        feature_names=all_features # Use all_features
     )
     
     shap.plots.bar(shap_explanation, show=False)
@@ -117,7 +154,7 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
     summary_plot_filename = f"shap_summary_plot_{prediction_type}.png"
     summary_plot_path = os.path.join(interp_dir, summary_plot_filename)
     plt.figure()
-    shap.summary_plot(shap_values, features_for_plot_scaled, feature_names=features, show=False)
+    shap.summary_plot(shap_values, X_test_for_summary_plot_numeric, feature_names=all_features, show=False) # Use numeric data and all_features
     plt.title("Feature Impact Summary", fontsize=16)
     plt.tight_layout()
     plt.savefig(summary_plot_path)
@@ -173,6 +210,27 @@ def generate_dl_interpretation(model, X_test_t, X_test_scaled_np, X_test_unscale
         plt.tight_layout()
         plt.savefig(waterfall_plot_path)
         plt.close()
+        
+        # Calculate and format the predicted output for the waterfall plot description
+        with torch.no_grad():
+            sample_input_tensor = X_test_t[random_index].unsqueeze(0) # Add batch dimension
+            raw_prediction_tensor = model(sample_input_tensor)
+            
+            if prediction_type == "Classification":
+                # For classification, get the predicted class
+                # Apply softmax to get probabilities if the model outputs logits
+                if raw_prediction_tensor.dim() > 1 and raw_prediction_tensor.shape[1] > 1: # Multi-class
+                    probabilities = torch.softmax(raw_prediction_tensor, dim=1)
+                    predicted_class = torch.argmax(probabilities, dim=1).item()
+                else: # Binary classification, output might be single logit
+                    # Assuming positive class is predicted if logit > 0 or probability > 0.5
+                    predicted_class = (torch.sigmoid(raw_prediction_tensor) > 0.5).int().item()
+                predicted_output_str = f"Predicted Class: {predicted_class}"
+            else: # Regression
+                # For regression, get the predicted value
+                predicted_value = raw_prediction_tensor.item()
+                predicted_output_str = f"Predicted Value: {predicted_value:.2f}"
+
         plots_metadata.append({
             'type': 'image',
             'filename': waterfall_plot_filename,

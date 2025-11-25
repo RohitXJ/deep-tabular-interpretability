@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import joblib # Added import for joblib
+import json # Added import for json
 
 # Initialize SHAP for JavaScript plots
 shap.initjs()
@@ -108,6 +110,34 @@ def generate_interpretation(model, X_test, X_test_unscaled, y_test, config, inte
     X_test = X_test_shap
     X_test_unscaled = X_test_unscaled_shap
 
+    # Load encoders and features
+    try:
+        encoders_path = os.path.join(interp_dir, 'encoders.joblib')
+        if os.path.exists(encoders_path):
+            loaded_encoders = joblib.load(encoders_path)
+        else:
+            loaded_encoders = {} # No encoders if file not found
+    except Exception as e:
+        print(f"Warning: Could not load encoders from {encoders_path}. Error: {e}")
+        loaded_encoders = {}
+
+    try:
+        features_path = os.path.join(interp_dir, 'features.json')
+        with open(features_path, 'r') as f:
+            all_features = json.load(f)
+    except Exception as e:
+        print(f"Warning: Could not load features from {features_path}. Error: {e}")
+        all_features = X_test.columns.tolist() # Fallback to current columns if file not found
+
+    categorical_cols = [col for col, encoder in loaded_encoders.items() if encoder is not None]
+    numeric_cols = [col for col in all_features if col not in categorical_cols]
+
+    # Create mixed data array for summary plot: unscaled numerical, encoded categorical
+    X_test_for_summary_plot = X_test_unscaled.copy()
+    for col in categorical_cols:
+        if col in X_test.columns: # Check if column exists in the *scaled* data
+            X_test_for_summary_plot[col] = X_test[col]
+    
     # Normalize SHAP values and base value for plotting, especially for classifiers.
     # This block handles the different output formats from SHAP.
     shap_values_for_plot = shap_values
@@ -124,7 +154,7 @@ def generate_interpretation(model, X_test, X_test_unscaled, y_test, config, inte
             base_value_for_plot = explainer.expected_value[1]
 
     # --- 1. Global Importance (SHAP Beeswarm) --- #
-    shap.summary_plot(shap_values_for_plot, X_test, show=False)
+    shap.summary_plot(shap_values_for_plot, X_test_for_summary_plot, feature_names=all_features, show=False)
     plt.title("Overall Feature Importance and Impact")
     plt.tight_layout()
     filename_summary = "shap_summary.png"
@@ -207,7 +237,7 @@ def generate_interpretation(model, X_test, X_test_unscaled, y_test, config, inte
 
     # --- 3. Feature Dependence Plots --- #
     vals = np.abs(shap_values_for_plot).mean(0)
-    feature_importance = pd.DataFrame(list(zip(X_test.columns, vals)), columns=['col_name', 'feature_importance_vals'])
+    feature_importance = pd.DataFrame(list(zip(all_features, vals)), columns=['col_name', 'feature_importance_vals'])
     feature_importance.sort_values(by=['feature_importance_vals'], ascending=False, inplace=True)
     top_features = feature_importance['col_name'].head(3).tolist()
 
