@@ -9,5 +9,3 @@ For this operation you will be needing to read codes from these two files,@ANN_a
 ** The Original True Value (the value that was supposed to be the output)
 
 * In the interpretation page, you will be able to see categorical data showing area, so if during the use of any ML or DL classificaiton models, if the target column is seen to have categorical values instead of numbers then make sure to show that in the categorical data showing area too with a separate lable that these are the target values encodede vs non-encoded.
-
-* Can we introduce a live loading screen before model result page and before interpretation page, the loading logo will actually act like a live progress meter where the model training progress will be shown to give it a realastic feel, can you please implement these, shouldnt look any lame work ok, it should look good and realastic with all required texts or messages around that whtas hapenning and all, focus on the css here to make it look good.
