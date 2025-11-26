@@ -1,42 +1,15 @@
-# GEMINI INSTRUCTION – FILE-WISE DATA EXTRACTION TO INFO.md
+# Task
+Hi, here are your tasks, complete order wise. You will be assigned folders or files to scan, look at a code file once and then write about it to the destination file, and then scan another and append the new info, do not update old info written already, below find what to write and how, and try to write less as much as possible, just the main logic should be written.
 
-Your task is to scan ONLY the files and folders listed below and extract **detailed technical information from each file**.
+* 1 Scan the code files of app/ and write about it in @APP.md
+* 2 Scan the code files of data_process/ and write about it in @DATA_PROCESS.md
+* 3 Scan the code files of model_hub/ and write about it in @MODEL_HUB.md
+* 4 Scan the file run.py and write about it in @INFO.md
 
-You must write all extracted information into a single file called:
-
-INFO.md
-
----
-
-## STRICT APPEND RULE
-
-- You must ONLY APPEND to INFO.md
-- You must NEVER overwrite INFO.md
-- You must NEVER rewrite or modify old entries
-- Every new scan must add content only at the END of the file
-
----
-
-## FILES & FOLDERS YOU ARE ALLOWED TO SCAN (WHITELIST)
-
-Scan ONLY these:
-
-- app/
-- data_process/
-- model_hub/
-- main.py
-- run.py
-- requirements.txt
-- .env
-- config.py
-
-Do NOT scan anything outside this list.
-
----
 
 ## WHAT TO WRITE FOR EACH FILE
 
-For every file you scan, append a clearly separated section in this format:
+For every file you scan, append a clearly separated section in this format, and try to write with as less words or lines possible, just clear intension of the file or codes:
 
 ### [APPEND | <DATE> | <FILE_PATH>]
 
@@ -48,21 +21,3 @@ For every file you scan, append a clearly separated section in this format:
 - How it connects to other files
 
 Write in clear technical detail.
-
----
-
-## STRICT RULES
-
-- Do NOT generate any project report
-- Do NOT summarize multiple files together
-- Do NOT guess or hallucinate missing logic
-- Do NOT clean up or reformat old INFO.md data
-- Do NOT overwrite INFO.md under any condition
-
-Only scan → extract → append.
-
----
-
-## FINAL GOAL
-
-By the end, INFO.md must contain a **complete technical breakdown of every scanned file** that can later be used to build the project report.
