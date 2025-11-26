@@ -1,39 +1,26 @@
-# GEMINI INSTRUCTION – INFO.md APPEND-ONLY DATA EXTRACTION
+# GEMINI INSTRUCTION – FILE-WISE DATA EXTRACTION TO INFO.md
 
-You are a technical documentation extraction agent.
+Your task is to scan ONLY the files and folders listed below and extract **detailed technical information from each file**.
 
-Your ONLY writable file is: INFO.md
+You must write all extracted information into a single file called:
 
-You MUST operate in **APPEND-ONLY MODE**:
-- Never overwrite INFO.md
-- Never rewrite old content
-- Only add new content at the END of the file
-- If a file was already scanned, only append newly found details
-
-Overwriting or regenerating old data = FAILURE.
+INFO.md
 
 ---
 
-## PROJECT CONTEXT (DO NOT GENERATE REPORT YET)
+## STRICT APPEND RULE
 
-This is a **completed Deep Learning + Interpretability platform for Tabular Data** using:
-- Flask backend
-- HTML + CSS frontend
-- Custom ANN/FNN models
-- SHAP for explainability
-- Automated preprocessing (encoding, scaling, tensor conversion)
-- CPU-only execution (GPU intentionally disabled)
-
-Supports:
-- Classification & Regression
-- Epoch selection (10–100)
-- Global and local SHAP explanations
+- You must ONLY APPEND to INFO.md
+- You must NEVER overwrite INFO.md
+- You must NEVER rewrite or modify old entries
+- Every new scan must add content only at the END of the file
 
 ---
 
-## ALLOWED FILES & FOLDERS TO SCAN (WHITELIST ONLY)
+## FILES & FOLDERS YOU ARE ALLOWED TO SCAN (WHITELIST)
 
 Scan ONLY these:
+
 - app/
 - data_process/
 - model_hub/
@@ -43,63 +30,39 @@ Scan ONLY these:
 - .env
 - config.py
 
-Ignore everything else.
+Do NOT scan anything outside this list.
 
 ---
 
-## WHAT TO EXTRACT INTO INFO.md
+## WHAT TO WRITE FOR EACH FILE
 
-Append structured data about:
-- Folder structure
-- Backend routes & logic
-- Model architectures
-- Training & evaluation methods
-- Preprocessing pipeline
-- SHAP & visualization logic
-- Model saving/loading
-- Frontend page flow
-- Configs & dependencies
+For every file you scan, append a clearly separated section in this format:
 
----
+### [APPEND | <DATE> | <FILE_PATH>]
 
-## MANDATORY FORMAT FOR EVERY APPEND
+- What this file does
+- What logic is implemented
+- What algorithms or techniques are used
+- What inputs it takes
+- What outputs it produces
+- How it connects to other files
 
-Use this format every time:
-
-### [APPEND | <DATE> | <FILE OR FOLDER NAME>]
-
-**Purpose:**  
-**Key Logic:**  
-**Algorithms/Techniques:**  
-**Inputs:**  
-**Outputs:**  
-**Dependencies:**  
-**Mapped Report Chapter:**  
-
-Then write the extracted content.
-
-Never modify earlier entries.
+Write in clear technical detail.
 
 ---
 
 ## STRICT RULES
 
-- Do NOT generate the final report
+- Do NOT generate any project report
 - Do NOT summarize multiple files together
-- Do NOT guess missing logic
-- Do NOT clean or reformat old entries
-- Do NOT overwrite INFO.md
+- Do NOT guess or hallucinate missing logic
+- Do NOT clean up or reformat old INFO.md data
+- Do NOT overwrite INFO.md under any condition
 
-Only verified extraction. Only append.
+Only scan → extract → append.
 
 ---
 
 ## FINAL GOAL
 
-INFO.md must become the **single source of truth** to generate:
-- Abstract
-- Literature Review
-- Methodology
-- Results
-- Conclusion
-- References
+By the end, INFO.md must contain a **complete technical breakdown of every scanned file** that can later be used to build the project report.
