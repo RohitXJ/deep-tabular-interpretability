@@ -219,7 +219,7 @@ Each step must be:
 Once extraction is complete, INFO.md must contain **everything required to auto-generate the full university project report with zero guesswork**.
 
 This INFO.md file will later be used by another agent to:
-- Write the Abstract
+- Write the Abstract(append the data, not just write and update)
 - Generate Literature Review
 - Create Methodology
 - Produce Result Analysis
@@ -227,3 +227,13 @@ This INFO.md file will later be used by another agent to:
 - Generate References
 
 You are only responsible for knowledge extraction and structured documentation.
+
+## Folders and Files to scan for info:
+app/
+data_process/
+model_hub/
+main.py
+run.py
+requirements.txt
+.env
+config.py
