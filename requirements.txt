@@ -11,7 +11,7 @@ imbalanced-learn
 Flask
 Flask-WTF
 python-dotenv
-
+torch
 shap
 joblib
 ipython
